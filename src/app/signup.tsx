@@ -5,31 +5,31 @@ import { Input } from "@/components/input"
 
 import { Link } from "expo-router"
 
-export default function Index(){
-    // behavior define como ajustar o layout ao abrir o teclado para evitar que ele cubra o campo de senha.
-    // Platform.select define o ajuste ao abrir o teclado: "padding" no iOS e "height" no Android.
+export default function SignUp(){
     return (
         <KeyboardAvoidingView style={{ flex:1}} behavior={Platform.select({ ios: "padding", android: "height" })}>
             <ScrollView
                 contentContainerStyle={{ flexGrow: 1}}
                 keyboardShouldPersistTaps="handled"
                 showsHorizontalScrollIndicator={false}
-                >
+            >
                 <View style={styles.container}>
-                    <Image source={require("@/assets/img1.png")}
+                    <Image source={require("@/assets/img2.png")}
                     style={styles.illustration}
                     />
-                    <Text style={styles.title}>Entrar</Text>
-                    <Text style={styles.subtitle}>Acesse sua conta com e-mail e senha.</Text>
+                    <Text style={styles.title}>Cadastrar</Text>
+                    <Text style={styles.subtitle}>Crie sua conta para acessar</Text>
 
                     <View style={styles.form}>
+                        <Input placeholder="Nome" />
                         <Input placeholder="E-mail" keyboardType="email-address"/>
                         <Input placeholder="Senha" secureTextEntry/>
-                        <Button label="Entrar" />
+                        <Input placeholder="Confirmar senha" secureTextEntry/>
+                        <Button label="Cadastrar" />
                     </View>
                     <Text style={styles.footerText}>
-                        Não tem uma conta? {" "}
-                        <Link href="/signup" style={styles.footterLink}>Cadastra-se aqui.</Link>
+                        Já tem uma conta? {" "}
+                        <Link href="/" style={styles.footterLink}>Entre aqui.</Link>
                     </Text>
                 </View>
             </ScrollView>
