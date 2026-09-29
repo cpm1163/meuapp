@@ -1,16 +1,41 @@
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native"
+import { useState } from "react"; // importa o useState para pode atualizar a tela com var
+import {
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
+} from "react-native";
 
-import { Button } from "@/components/Button"
-import { Input } from "@/components/input"
+import { Button } from "@/components/Button";
+import { Input } from "@/components/input";
 
-import { Link } from "expo-router"
+import { Link } from "expo-router";
 
 export default function Index(){
+    // Criar uma variável para guardar o input de e-mail :: let email = ""
+    // Criar uma variável useState
+    const [email, setEmail] = useState("") // [email: nome da função, setEmail é a função]
+    const [password, setPassword] = useState("") // [password: nome da função, setPassword é a função]
+    
     // behavior define como ajustar o layout ao abrir o teclado para evitar que ele cubra o campo de senha.
     // Platform.select define o ajuste ao abrir o teclado: "padding" no iOS e "height" no Android.
+    function handleSignIn(){
+        if(!email.trim() || !password.trim()) // trim: tira estaçoes em branco
+            return Alert.alert("Entrar", "Preencher e-mail e senha para entrar.")
+        //console.log(email, password)
+
+        Alert.alert("Bem-vindo", `Login realizado com ${email}`) // usando a interpolação para apresentar a msg
+    }
     return (
         <KeyboardAvoidingView style={{ flex:1}} behavior={Platform.select({ ios: "padding", android: "height" })}>
             <ScrollView
+                //- **`flexGrow: 1`**: faz o conteúdo ocupar todo o espaço disponível, mantendo a rolagem se necessário.
+                // - **`keyboardShouldPersistTaps="handled"`**: permite acionar botões com o teclado aberto; tocar fora deles fecha o teclado. 
+                // **showsHorizontalScrollIndicator**={false} desabilita a barra de scroll lateral
                 contentContainerStyle={{ flexGrow: 1}}
                 keyboardShouldPersistTaps="handled"
                 showsHorizontalScrollIndicator={false}
@@ -23,9 +48,20 @@ export default function Index(){
                     <Text style={styles.subtitle}>Acesse sua conta com e-mail e senha.</Text>
 
                     <View style={styles.form}>
-                        <Input placeholder="E-mail" keyboardType="email-address"/>
-                        <Input placeholder="Senha" secureTextEntry/>
-                        <Button label="Entrar" />
+                        <Input
+                        placeholder="E-mail"
+                        keyboardType="email-address"
+                        // onChangeText={(text) => setEmail(text)} // executa uma função anônima
+                        onChangeText={setEmail} // executa uma função anônima
+                        />
+
+                        <Input
+                        placeholder="Senha"
+                        secureTextEntry
+                        onChangeText={setPassword} // executa uma função anônima
+                        />
+                        
+                        <Button label="Entrar" onPress={handleSignIn} />
                     </View>
                     <Text style={styles.footerText}>
                         Não tem uma conta? {" "}
