@@ -6,10 +6,15 @@ import { Input } from "@/components/input"
 import { Link } from "expo-router"
 
 export default function SignUp(){
+    // behavior define como ajustar o layout ao abrir o teclado para evitar que ele cubra o campo de senha.
+    // Platform.select define o ajuste ao abrir o teclado: "padding" no iOS e "height" no Android.
     return (
         <KeyboardAvoidingView style={{ flex:1}} behavior={Platform.select({ ios: "padding", android: "height" })}>
             <ScrollView
-                contentContainerStyle={{ flexGrow: 1}}
+                //- **`flexGrow: 1`**: faz o conteúdo ocupar todo o espaço disponível, mantendo a rolagem se necessário.
+                // - **`keyboardShouldPersistTaps="handled"`**: permite acionar botões com o teclado aberto; tocar fora deles fecha o teclado. 
+                // **showsHorizontalScrollIndicator**={false} desabilita a barra de scroll lateral
+               contentContainerStyle={{ flexGrow: 1}}
                 keyboardShouldPersistTaps="handled"
                 showsHorizontalScrollIndicator={false}
             >
