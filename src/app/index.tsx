@@ -1,3 +1,4 @@
+import { validateEmail, validateNewPassword } from "@/utils/validation";
 import { useState } from "react"; // importa o useState para pode atualizar a tela com var
 import {
     Alert,
@@ -24,11 +25,19 @@ export default function Index(){
     // behavior define como ajustar o layout ao abrir o teclado para evitar que ele cubra o campo de senha.
     // Platform.select define o ajuste ao abrir o teclado: "padding" no iOS e "height" no Android.
     function handleSignIn(){
-        if(!email.trim() || !password.trim()) // trim: tira estaçoes em branco
-            return Alert.alert("Entrar", "Preencher e-mail e senha para entrar.")
-        //console.log(email, password)
+        const emailError = validateEmail(email)
+        // Aplica os critérios completos de senha antes de continuar.
+        const passwordError = validateNewPassword(password);
 
-        Alert.alert("Bem-vindo", `Login realizado com ${email}`) // usando a interpolação para apresentar a msg
+        if(emailError !== null) {
+            return Alert.alert("Entrar", emailError)
+        }
+
+        if(passwordError !== null) {
+            return Alert.alert("Entrar", passwordError)
+        }
+
+        Alert.alert("Entrar", "Campos válidos. Nenhum login foi realizado.");
     }
     return (
         <KeyboardAvoidingView style={{ flex:1}} behavior={Platform.select({ ios: "padding", android: "height" })}>
@@ -58,6 +67,7 @@ export default function Index(){
                         <Input
                         placeholder="Senha"
                         secureTextEntry
+                        value={password}
                         onChangeText={setPassword} // executa uma função anônima
                         />
                         
