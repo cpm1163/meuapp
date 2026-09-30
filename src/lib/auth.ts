@@ -1,3 +1,4 @@
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
@@ -32,6 +33,9 @@ export function exchangeAuthCode(code: string): Promise<void> {
 }
 
 export async function signInWithSocialProvider(provider: SocialProvider) {
+  if (Platform.OS !== "web" && Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+    throw Object.assign(new Error("expo_go_oauth"), { code: "expo_go_oauth" });
+  }
   const redirectTo = getAuthRedirectUrl();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
@@ -44,9 +48,16 @@ export async function signInWithSocialProvider(provider: SocialProvider) {
     return;
   }
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== "success") return;
+  if (result.type === "cancel" || result.type === "dismiss") return;
+  if (result.type !== "success") throw new Error("oauth_browser_failed");
   const url = new URL(result.url);
-  if (url.searchParams.has("error")) throw new Error("oauth_failed");
+  const expected = new URL(redirectTo);
+  if (url.protocol !== expected.protocol || url.host !== expected.host || url.pathname !== expected.pathname) {
+    throw new Error("invalid_callback_url");
+  }
+  if (url.searchParams.has("error") || url.searchParams.has("error_description")) {
+    throw Object.assign(new Error("oauth_failed"), { code: "oauth_failed" });
+  }
   const code = url.searchParams.get("code");
   if (!code) throw new Error("missing_code");
   await exchangeAuthCode(code);
@@ -64,6 +75,8 @@ export function authErrorMessage(error: unknown) {
   const code = error && typeof error === "object" && "code" in error
     ? String(error.code) : "";
   const messages: Record<string, string> = {
+    expo_go_oauth: "O login com Google não está disponível no Expo Go. Use a versão web ou uma build de desenvolvimento do app.",
+    oauth_failed: "O provedor não autorizou o acesso. Inicie o login novamente.",
     invalid_credentials: "E-mail ou senha incorretos.",
     email_not_confirmed: "Confirme seu e-mail antes de entrar.",
     otp_expired: "Este link expirou ou já foi utilizado. Solicite um novo link.",
