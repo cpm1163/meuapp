@@ -6,7 +6,15 @@ export function Input({ secureTextEntry, style, editable, ...rest }: TextInputPr
     const [passwordVisible, setPasswordVisible] = useState(false);
 
     if (!secureTextEntry) {
-        return <TextInput {...rest} editable={editable} style={[styles.input, style]} />;
+        return (
+            <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                {...rest}
+                editable={editable}
+                style={[styles.input, style]}
+            />
+        );
     }
 
     return (
