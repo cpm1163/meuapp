@@ -3,6 +3,7 @@ import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, T
 
 import { Button } from "@/components/Button";
 import { Input } from "@/components/input";
+import { getAuthRedirectUrl } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import {
     validateEmail,
@@ -58,6 +59,7 @@ export default function SignUp(){
             email: email.trim(),
             password,
             options: {
+            emailRedirectTo: getAuthRedirectUrl(),
             data: {
                 name: name.trim(),
             },

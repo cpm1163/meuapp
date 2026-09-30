@@ -1,142 +1,100 @@
 # Autenticação com Supabase
 
-## Objetivo
+## Implementado
 
-Implementar autenticação no aplicativo Expo SDK 57 com Supabase Auth, utilizando o mesmo cliente e a mesma gestão de sessão para:
+- Cadastro com nome, e-mail e senha e retorno da confirmação de e-mail.
+- Login com senha, Google via OAuth no navegador e magic link com criação automática de conta (`shouldCreateUser: true`).
+- Cliente com PKCE, persistência da sessão e renovação conforme o estado do app.
+- AuthProvider, restauração de sessão, rotas protegidas, tela interna e logout.
+- Callback `/auth/callback` que troca o código por uma sessão e trata falhas.
+- Mensagens em português, bloqueio de operações simultâneas na tela de login e intervalo de 60 segundos para reenviar magic link.
 
-- E-mail e senha.
-- Magic link enviado por e-mail.
-- Provedores sociais, a definir (por exemplo, Google e Apple).
+A implementação local foi mantida. O magic link já foi validado na web conforme o registro abaixo. A configuração e os testes do Google permanecem pendentes.
 
-Este documento registra o plano de implementação. Os itens pendentes não representam funcionalidades já disponíveis.
+## Configuração e testes confirmados
 
-## Estado atual
+- [x] Email provider habilitado em Authentication > Sign In / Providers.
+- [x] Allow new users to sign up ativado.
+- [x] Confirm email mantido ativado.
+- [x] `myapp://auth/callback` cadastrado em Redirect URLs para a futura build instalada.
+- [x] Retorno web para `http://localhost:8081/auth/callback` funcionando no teste local.
+- [x] E-mail de magic link recebido no endereço utilizado no teste.
+- [x] Login concluído no Chrome, chegando a `/home` com a mensagem “Você está conectado”.
+- [x] Logout pelo botão Sair e bloqueio de acesso direto à `/home` após sair, confirmados pelo usuário.
+- [ ] Persistência da sessão após recarregar a página: ainda sem confirmação explícita do teste.
+- [ ] Configurar e testar login com Google — próximo passo.
+- [ ] Configurar SMTP para envio a usuários externos; o recebimento no endereço testado não valida a entrega para outros destinatários.
+- [ ] Validar em development build no Android/iOS. O ambiente mobile usado até aqui é Expo Go.
 
-- [x] Organização e projeto criados no Supabase, conforme informado durante a configuração.
-- [x] Variáveis preenchidas no `.env`, conforme informado pelo desenvolvedor.
-- [x] `.env` incluído no `.gitignore`.
-- [x] Dependências instaladas: `@supabase/supabase-js`, `@react-native-async-storage/async-storage` e `react-native-url-polyfill`.
-- [x] Cliente básico criado em `src/lib/supabase.ts`, com validação das variáveis de ambiente.
-- [x] Telas de login e cadastro com validação local dos campos.
-- [ ] Persistência e renovação da sessão configuradas para dispositivos móveis.
-- [ ] Telas conectadas ao Supabase Auth.
-- [ ] Gestão centralizada da sessão e rotas protegidas.
-- [ ] Magic link e provedores sociais implementados.
+### Como repetir o teste web
 
-## Organização proposta
+1. Executar `npm run web` no projeto e abrir `http://localhost:8081` (ajustar a porta se necessário).
+2. Em Authentication > URL Configuration > Redirect URLs, conferir a inclusão de `http://localhost:8081/auth/callback`. Manter também `myapp://auth/callback` para a build nativa. O campo Site URL foi mantido em `http://localhost:3000` durante a configuração mostrada; ele não substitui a lista de Redirect URLs.
+3. No app, selecionar “Entrar sem senha (magic link)”, informar o e-mail e solicitar o link.
+4. Abrir o e-mail mais recente e clicar em Sign in no mesmo navegador, perfil e dispositivo usados na solicitação, sem alternar para uma janela anônima.
+5. Confirmar o acesso a `/home` e a mensagem “Você está conectado”.
+6. Recarregar a página para verificar se a sessão continua ativa — validação ainda pendente de confirmação.
+7. Clicar em Sair e tentar acessar `http://localhost:8081/home`; o app deve voltar ao login. Este comportamento já foi confirmado.
 
-| Arquivo ou pasta | Responsabilidade |
-| --- | --- |
-| `src/lib/supabase.ts` | Criar e exportar o cliente compartilhado do Supabase. |
-| `src/providers/auth-provider.tsx` (a criar) | Disponibilizar sessão, usuário e estado de carregamento; acompanhar mudanças de autenticação. |
-| `src/app/_layout.tsx` | Integrar o provider e controlar o acesso às rotas com Expo Router. |
-| `src/app/index.tsx` | Tela de login existente. |
-| `src/app/signup.tsx` | Tela de cadastro existente. |
-| `src/app/` | Futuras telas internas e rota de retorno da autenticação. |
-| `src/utils/validation.ts` | Validações dos formulários. |
+### Falha observada durante o teste
 
-O cliente fica em `lib` porque configura uma biblioteca externa. Funções auxiliares permanecem em `utils`. Providers, hooks e outros arquivos que não sejam rotas devem ficar fora de `src/app`.
+Uma tentativa chegou ao callback, mas exibiu “Não foi possível validar o link”. As capturas mostravam o app anteriormente no Edge e o link aberto no Chrome. A troca de navegador foi apontada como causa provável, pois o verificador PKCE fica salvo no navegador que iniciou o acesso. Depois de solicitar um novo link e concluir o fluxo no Chrome, o login funcionou.
 
-## Variáveis de ambiente
+O endereço `myapp://auth/callback` identifica o retorno para uma build instalada com o scheme `myapp`. Para o teste realizado no navegador, o retorno usado foi `http://localhost:8081/auth/callback`.
 
-O `.env`, na raiz do projeto, utiliza estes nomes:
+## Configurar Supabase
 
-```dotenv
-EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-```
+Manter no `.env` somente `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Nunca colocar client secret do Google ou service role no app.
 
-Os valores não devem ser copiados para este documento. Variáveis com prefixo `EXPO_PUBLIC_` são incorporadas ao aplicativo e não são segredos. A publishable key é destinada ao cliente; nunca colocar uma secret key, `service_role` ou senha do banco no app.
+Em Authentication > URL Configuration:
 
-## Etapas de implementação
+- Adicionar `myapp://auth/callback` em Redirect URLs para a build nativa.
+- Adicionar `http://localhost:8081/auth/callback` para web local (ajustar à porta utilizada).
+- Adicionar `https://SEU_DOMINIO/auth/callback` para web publicada e definir a Site URL real.
+- Se alterar o scheme em `app.json`, atualizar `getAuthRedirectUrl` e gerar uma nova build.
 
-### 1. Completar o cliente
+Em Authentication > Providers, habilitar Email e Google. Permitir novos cadastros para que o magic link possa criar contas.
 
-- Importar o polyfill de URL antes de inicializar o cliente.
-- Manter a validação das variáveis de ambiente.
-- Configurar o armazenamento da sessão no dispositivo com AsyncStorage, considerando separadamente a execução web.
-- Habilitar persistência e renovação automática da sessão.
-- Controlar a renovação conforme o aplicativo entra em primeiro ou segundo plano.
-- Registrar os listeners uma única vez e remover assinaturas quando seu responsável for desmontado.
+Nos templates de Magic Link e Confirm signup, manter o link `{{ .ConfirmationURL }}`. Ele verifica o e-mail no Supabase e redireciona para o callback com `code`. Um template que envia apenas OTP numérico não atende à interface implementada.
 
-O AsyncStorage persiste dados, mas não é armazenamento criptografado. Não salvar a senha do usuário; a sessão é gerenciada pelo SDK.
+Configurar SMTP e conferir os limites de envio antes de testar com usuários externos. A espera local de 60 segundos não substitui os limites do servidor.
 
-### 2. Conectar e-mail e senha
+## Configurar Google
 
-- Cadastro: utilizar `supabase.auth.signUp`, enviando o nome como metadado.
-- Login: utilizar `supabase.auth.signInWithPassword`.
-- Exibir carregamento, impedir envios repetidos e tratar erros em português.
-- No login, exigir senha preenchida sem reaplicar regras de criação de senha.
-- No cadastro, validar a senha e sua confirmação e alinhar os critérios com o Supabase.
-- Se a confirmação de e-mail estiver habilitada, orientar a pessoa a confirmar o endereço quando o cadastro não retornar uma sessão.
+1. Configurar projeto, tela de consentimento e usuários de teste no Google Auth Platform.
+2. Criar um cliente OAuth do tipo Web application, pois o login passa pelo Supabase no navegador.
+3. Em Authorized redirect URIs do Google, cadastrar o callback exibido pelo Supabase: `https://SEU_PROJETO.supabase.co/auth/v1/callback` (ou o domínio customizado correspondente).
+4. Salvar Client ID e Client Secret no provedor Google do Supabase e habilitá-lo.
 
-A confirmação de cadastro e o magic link de login são fluxos distintos.
+O callback cadastrado no Google é do Supabase. O endereço `myapp://auth/callback` fica na lista de redirects do Supabase e devolve o usuário ao app. Nenhum segredo do Google precisa estar no `.env` do aplicativo.
 
-### 3. Centralizar a sessão e proteger as telas
+## Comportamento por plataforma
 
-- Criar um AuthProvider que restaure a sessão inicial e acompanhe `onAuthStateChange`.
-- Aguardar a conclusão do carregamento inicial antes de decidir a navegação.
-- Disponibilizar as telas internas somente com uma sessão autenticada, utilizando as rotas protegidas do Expo Router.
-- Criar uma tela interna inicial com botão Sair.
-- Implementar logout com `supabase.auth.signOut` e tratar possíveis falhas.
+No Android/iOS, `openAuthSessionAsync` abre o navegador de autenticação. Na web, o login navega na mesma aba. O Expo Router recebe `/auth/callback`; a troca de código é compartilhada para evitar processamento duplicado pelo Router e pelo navegador nativo.
 
-Proteção de rotas controla a interface. A autorização de acesso aos dados deve ser aplicada no servidor, com permissões e políticas RLS.
+O fluxo PKCE exige o verificador salvo onde o acesso começou. Solicitar e abrir o magic link no mesmo app/dispositivo; na web, usar o mesmo navegador e origem. Usar o link mais recente e evitar iniciar outro login antes de abri-lo. Links antigos, expirados, reutilizados ou abertos sem o verificador exigem um novo envio.
 
-### 4. Implementar magic link
-
-- Criar a opção de entrar informando apenas o e-mail.
-- Enviar o link com `supabase.auth.signInWithOtp`.
-- Definir se esse fluxo poderá criar contas automaticamente; configurar `shouldCreateUser` conforme essa decisão.
-- Definir o endereço de retorno ao app e cadastrá-lo entre as URLs permitidas no Supabase.
-- Implementar a rota que recebe o retorno e estabelece a sessão de acordo com o fluxo escolhido.
-- Tratar links expirados, inválidos ou já utilizados, além do reenvio.
-
-O recebimento do link não significa que a sessão já foi estabelecida. O retorno ao aplicativo precisa ser processado. Planejar testes em development build com o endereço de retorno real do app.
-
-### 5. Adicionar provedores sociais
-
-- Escolher os provedores que serão oferecidos.
-- Configurar o aplicativo e as credenciais no painel de cada provedor.
-- Habilitar e configurar os provedores no Supabase.
-- Distinguir o callback do Supabase cadastrado no provedor do endereço que devolve o usuário ao aplicativo.
-- Escolher o fluxo adequado para cada plataforma: OAuth pelo navegador ou integração nativa compatível.
-- Adicionar os botões e tratar sucesso, cancelamento e falha.
-
-Credenciais secretas dos provedores ficam na configuração apropriada do serviço, nunca em variáveis públicas do app.
-
-### 6. Completar recuperação e autorização
-
-- Implementar solicitação de recuperação de senha e tela para definir uma nova senha.
-- Configurar e testar os retornos de confirmação de e-mail e recuperação de senha.
-- Antes de disponibilizar o app ao público, configurar o envio de e-mails e conferir os limites do serviço.
-- Para cada tabela de dados da aplicação, definir permissões e políticas RLS específicas.
-- Não criar uma tabela própria para armazenar senhas: Supabase Auth gerencia as credenciais.
-
-Ativar RLS automaticamente nas tabelas novas não cria políticas de acesso. As permissões e as políticas precisam ser configuradas conforme os dados que cada usuário pode acessar.
+Para validar o scheme nativo, usar uma development build com `myapp` registrado. Expo Go não é o ambiente de validação deste OAuth. A confirmação de cadastro também usa o mesmo callback PKCE.
 
 ## Validação
 
-Após a implementação de cada etapa, executar lint e TypeScript conforme as instruções do projeto. O ESLint ainda precisa ser configurado; não considerar lint aprovado enquanto essa configuração estiver pendente.
+Executar `npx expo lint`, `npx tsc --noEmit` e `node --test tests/auth.test.cjs`.
 
-Validar os fluxos relevantes em dispositivo ou emulador:
+Além dos testes web confirmados acima, permanecem pendentes:
 
-- Cadastro com confirmação de e-mail e login com credenciais válidas e inválidas.
-- Mensagens de erro e prevenção de envio duplicado.
-- Restauração da sessão ao fechar e reabrir o app.
-- Renovação da sessão ao alternar entre primeiro e segundo plano.
-- Logout e bloqueio de acesso às telas internas após sair.
-- Retorno por link com o app aberto e fechado.
-- Magic link válido, expirado e reutilizado.
-- Login social concluído, cancelado e com falha.
-- Recuperação de senha.
-- Impossibilidade de um usuário acessar dados privados de outro pelas APIs.
+- Google: sucesso, cancelamento, conta recusada e provedor desabilitado.
+- Magic link: validar separadamente conta existente e criação de conta, reenvio e links expirados/reutilizados. O teste concluído não distinguiu se a conta era nova ou existente.
+- Retorno com app aberto e fechado; confirmar acesso à tela interna.
+- Cadastro com confirmação de e-mail; login por senha válido/inválido.
+- Persistência após recarregar a web; reabrir o app nativo, alternar segundo plano e verificar logout/proteção das telas em Android/iOS.
 
-## Referências oficiais
+Proteção de rotas controla a interface; configurar permissões/RLS para os dados do aplicativo. Recuperação de senha permanece pendente e não tem tela implementada.
 
-- [Supabase Auth com React Native](https://supabase.com/docs/guides/auth/quickstarts/react-native)
-- [Variáveis de ambiente no Expo](https://docs.expo.dev/guides/environment-variables/)
+## Referências
+
+- [Expo SDK 57 WebBrowser](https://docs.expo.dev/versions/v57.0.0/sdk/webbrowser/)
 - [Autenticação no Expo Router](https://docs.expo.dev/router/advanced/authentication/)
-- [Magic link e OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless)
-- [Deep links no Supabase Auth](https://supabase.com/docs/guides/auth/native-mobile-deep-linking)
-- [Login social](https://supabase.com/docs/guides/auth/social-login)
-- [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Supabase com React Native](https://supabase.com/docs/guides/auth/quickstarts/react-native)
+- [Fluxo PKCE](https://supabase.com/docs/guides/auth/sessions/pkce-flow)
+- [Magic link](https://supabase.com/docs/guides/auth/auth-email-passwordless)
+- [Configuração Google](https://supabase.com/docs/guides/auth/social-login/auth-google)

@@ -1,0 +1,80 @@
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
+import { supabase } from "./supabase";
+
+export const socialProviders = [
+  { id: "google", label: "Google" },
+] as const;
+export type SocialProvider = (typeof socialProviders)[number]["id"];
+
+export function getAuthRedirectUrl() {
+  return Platform.OS === "web"
+    ? new URL("/auth/callback", window.location.origin).toString()
+    : Linking.createURL("auth/callback", { scheme: "myapp" });
+}
+
+// Router and the native browser can deliver the same callback concurrently.
+let lastExchange: { code: string; promise: Promise<void> } | undefined;
+export function clearAuthCallbackState() {
+  lastExchange = undefined;
+}
+
+export function exchangeAuthCode(code: string): Promise<void> {
+  if (lastExchange?.code === code) return lastExchange.promise;
+  const promise = (async () => {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    if (!data.session) throw new Error("missing_session");
+  })();
+  lastExchange = { code, promise };
+  return promise;
+}
+
+export async function signInWithSocialProvider(provider: SocialProvider) {
+  const redirectTo = getAuthRedirectUrl();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo, skipBrowserRedirect: true },
+  });
+  if (error) throw error;
+  if (!data.url) throw new Error("missing_oauth_url");
+  if (Platform.OS === "web") {
+    window.location.assign(data.url);
+    return;
+  }
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  if (result.type !== "success") return;
+  const url = new URL(result.url);
+  if (url.searchParams.has("error")) throw new Error("oauth_failed");
+  const code = url.searchParams.get("code");
+  if (!code) throw new Error("missing_code");
+  await exchangeAuthCode(code);
+}
+
+export async function sendMagicLink(email: string) {
+  const { error } = await supabase.auth.signInWithOtp({
+    email: email.trim(),
+    options: { emailRedirectTo: getAuthRedirectUrl(), shouldCreateUser: true },
+  });
+  if (error) throw error;
+}
+
+export function authErrorMessage(error: unknown) {
+  const code = error && typeof error === "object" && "code" in error
+    ? String(error.code) : "";
+  const messages: Record<string, string> = {
+    invalid_credentials: "E-mail ou senha incorretos.",
+    email_not_confirmed: "Confirme seu e-mail antes de entrar.",
+    otp_expired: "Este link expirou ou já foi utilizado. Solicite um novo link.",
+    flow_state_expired: "O acesso expirou. Inicie o login novamente.",
+    flow_state_not_found: "Solicite um novo link e abra no mesmo dispositivo e navegador em que iniciou o acesso.",
+    bad_code_verifier: "Abra o link no mesmo dispositivo e navegador em que iniciou o acesso, ou solicite um novo link.",
+    validation_failed: "Não foi possível validar o acesso. Solicite um novo link.",
+    provider_disabled: "Este provedor ainda não está disponível.",
+    signup_disabled: "O cadastro de novas contas está desabilitado.",
+    over_email_send_rate_limit: "Aguarde antes de solicitar outro e-mail.",
+    over_request_rate_limit: "Muitas tentativas. Aguarde e tente novamente.",
+  };
+  return messages[code] ?? "Não foi possível concluir o acesso. Verifique sua conexão e tente novamente.";
+}
