@@ -1,9 +1,24 @@
 import { Stack } from "expo-router";
-// Organiza as telas em uma pilha de navegação, permitindo avançar e voltar entre elas.
+import { ActivityIndicator, View } from "react-native";
+import { AuthProvider, useAuth } from "@/providers/auth-provider";
+
+function Routes() {
+  const { session, loading } = useAuth();
+  if (loading) return <View style={{ flex: 1, justifyContent: "center" }}><ActivityIndicator accessibilityLabel="Restaurando sessão" /></View>;
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Protected guard={!session}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="signup" />
+      </Stack.Protected>
+      <Stack.Protected guard={!!session}>
+        <Stack.Screen name="home" />
+      </Stack.Protected>
+      <Stack.Screen name="auth/callback" />
+    </Stack>
+  );
+}
+
 export default function Layout() {
-    return (
-        <Stack screenOptions={{
-            headerShown: false, // Oculta o cabeçalho padrão da tela.            // headerShown: false
-        }}/>
-    )
+  return <AuthProvider><Routes /></AuthProvider>;
 }
