@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { router } from "expo-router";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/providers/auth-provider";
@@ -53,7 +54,7 @@ export default function Home() {
   }
 
   function showImport() {
-    setPreview({ title: "Seu próximo documento, mais inteligente.", description: "Em breve você poderá importar arquivos para resumir, extrair informações e tirar dúvidas com IA." });
+    router.push("/documents");
   }
 
   return (
@@ -124,13 +125,12 @@ export default function Home() {
 
         <View style={styles.sectionHeading}>
           <Text style={styles.sectionTitle}>Seus documentos</Text>
-          <View style={styles.count}><Text style={styles.countText}>0</Text></View>
         </View>
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}><Text style={styles.emptyIconText}>≡</Text></View>
-          <Text style={styles.emptyTitle}>Grandes ideias começam aqui</Text>
-          <Text style={styles.emptyDescription}>Adicione seu primeiro documento e deixe a IA ajudar com o próximo passo.</Text>
-          <Pressable accessibilityRole="button" onPress={showImport} style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}><Text style={styles.emptyButtonText}>Adicionar meu primeiro arquivo  ↗</Text></Pressable>
+          <Text style={styles.emptyTitle}>Sua biblioteca privada</Text>
+          <Text style={styles.emptyDescription}>Acesse seus arquivos e os documentos compartilhados com você.</Text>
+          <Pressable accessibilityRole="button" onPress={showImport} style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}><Text style={styles.emptyButtonText}>Abrir meus documentos  ↗</Text></Pressable>
         </View>
         <View style={styles.footer}><View style={styles.footerDot} /><Text style={styles.footerText}>Mais espaço para suas ideias.</Text></View>
       </ScrollView>

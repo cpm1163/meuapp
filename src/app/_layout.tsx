@@ -13,6 +13,7 @@ function Routes() {
       </Stack.Protected>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="home" />
+        <Stack.Screen name="documents" />
       </Stack.Protected>
       <Stack.Screen name="auth/callback" />
     </Stack>

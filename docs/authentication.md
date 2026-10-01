@@ -1,5 +1,9 @@
 # Autenticação com Supabase
 
+Última revisão do código e da documentação: 01/10/2026. Projeto com Expo SDK 57.
+
+As confirmações manuais abaixo preservam o histórico já registrado; esta revisão não repete logins reais nem verifica os painéis do Supabase e do Google.
+
 ## Implementado
 
 - Cadastro com nome, e-mail e senha e retorno da confirmação de e-mail.
@@ -10,6 +14,57 @@
 - Mensagens em português, bloqueio de operações simultâneas na tela de login e intervalo de 60 segundos para reenviar magic link.
 
 O Google é o único provedor social implementado neste momento. O magic link já foi validado na web conforme o registro abaixo. O login Google na web também foi concluído com sucesso, conforme confirmação do usuário após as orientações para corrigir o retorno local e iniciar uma nova tentativa.
+
+## Provedores sociais — última atividade registrada
+
+A última atividade registrada foi a configuração e validação do **Google na web**. Após corrigir as orientações de retorno local e iniciar uma nova tentativa, o usuário confirmou “agora foi”. Esse resultado confirma o login real pelo Google na web; os valores finais dos painéis não foram inspecionados diretamente.
+
+| Provedor | Implementação no app | Validação real registrada |
+| --- | --- | --- |
+| Google | Botão “Continuar com Google”, OAuth via Supabase e callback compartilhado. | Login na web concluído com sucesso. Android/iOS pendentes. |
+| Outros provedores sociais | Não há botões nem fluxos implementados. | Não validados. |
+
+A lista `socialProviders` em `src/lib/auth.ts` contém somente `google`, e a tela de login gera os botões a partir dela. Habilitar outro provedor no painel do Supabase, isoladamente, não adiciona esse provedor à interface. Login por senha e magic link são alternativas por e-mail, não provedores sociais.
+
+### Resultado e problemas encontrados
+
+1. A primeira tentativa retornou HTTP 400, `validation_failed`, com `Unsupported provider: provider is not enabled`.
+2. Após configurar o Google no Supabase, o fluxo abriu a verificação de identidade do Google.
+3. Uma tentativa retornou `bad_oauth_state` / `OAuth state has expired` para `localhost:3000`, onde houve conexão recusada. Essa tentativa não confirmou uma sessão. A demora na verificação foi apenas uma hipótese para a expiração.
+4. A orientação foi ajustar a Site URL local para a origem do app (`http://localhost:8081` no teste), conferir `/auth/callback` em Redirect URLs e iniciar um novo login.
+5. Depois de uma nova tentativa, o usuário confirmou o sucesso na web. A falha anterior fica como histórico, não como bloqueio atual do Google.
+
+A configuração usa dois retornos distintos: o Google recebe o callback **do Supabase** (`https://SEU_PROJETO.supabase.co/auth/v1/callback`); o Supabase recebe o callback **do app** na lista de Redirect URLs (`http://localhost:8081/auth/callback` na web local ou `myapp://auth/callback` na build nativa). Client ID e Client Secret do Google ficam no provedor do Supabase; o app usa apenas a URL e a chave pública do Supabase.
+
+Próximas validações específicas do Google: persistência após recarregar, cancelamento, recusa de acesso e login em development build Android/iOS. O app bloqueia esse OAuth no Expo Go. O passo a passo está em [Configurar Google](#configurar-google).
+
+## Mapa da implementação
+
+| Arquivo | Responsabilidade |
+| --- | --- |
+| [`src/lib/supabase.ts`](../src/lib/supabase.ts) | Cliente, variáveis de ambiente, PKCE e persistência da sessão. |
+| [`src/lib/auth.ts`](../src/lib/auth.ts) | URL de retorno, OAuth Google, magic link, troca de código e mensagens de erro. |
+| [`src/providers/auth-provider.tsx`](../src/providers/auth-provider.tsx) | Restauração, eventos de sessão e renovação no app nativo. |
+| [`src/app/_layout.tsx`](../src/app/_layout.tsx) | Proteção das telas conforme a sessão. |
+| [`src/app/index.tsx`](../src/app/index.tsx) | Login por senha, Google e envio de magic link. |
+| [`src/app/signup.tsx`](../src/app/signup.tsx) | Cadastro e orientação para confirmação de e-mail. |
+| [`src/app/auth/callback.tsx`](../src/app/auth/callback.tsx) | Validação do retorno e conclusão do acesso. |
+| [`src/app/home.tsx`](../src/app/home.tsx) | Home autenticada, conta e logout. |
+| [`tests/auth.test.cjs`](../tests/auth.test.cjs) | Testes do serviço com navegador e Supabase simulados. |
+
+### Sessão e proteção de telas
+
+O cliente exige `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; sem elas, a inicialização lança um erro. Usa `flowType: "pkce"`, `persistSession: true`, `autoRefreshToken: true` e `detectSessionInUrl: false`. No nativo, fornece AsyncStorage; na web, não fornece armazenamento customizado.
+
+O provider assina `onAuthStateChange` e consulta `getSession`. Se um evento já chegou, o resultado inicial não sobrescreve a sessão recebida. Enquanto a restauração está em andamento, o layout mostra “Restaurando sessão”. No nativo, a renovação é iniciada quando o app está ativo e interrompida nos demais estados.
+
+As telas `/` e `/signup` ficam disponíveis sem sessão; `/home` exige sessão. O callback permanece acessível nos dois estados. Ele rejeita retorno com erro ou sem código e só redireciona para `/home` depois que a troca termina e o provider recebe a sessão. A última troca é compartilhada por código para evitar processamento duplicado; o evento `SIGNED_OUT` limpa esse estado.
+
+### Cadastro e envio de links
+
+O cadastro envia o nome em `user_metadata.name`, remove espaços nas extremidades do e-mail e usa o mesmo callback dos demais fluxos. Quando o Supabase retorna uma sessão, informa sucesso; quando não retorna, orienta a confirmar o e-mail. As regras dos campos estão em [Validação dos formulários](validacao-formularios.md).
+
+O intervalo de 60 segundos começa após um envio de magic link bem-sucedido e fica no estado da tela: não é persistido ao recarregar. O bloqueio de operações simultâneas também é local à tela de login.
 
 ## Configuração e testes confirmados
 
@@ -30,7 +85,7 @@ O Google é o único provedor social implementado neste momento. O magic link j�
 ### Como repetir o teste web
 
 1. Executar `npm run web` no projeto e abrir `http://localhost:8081` (ajustar a porta se necessário).
-2. Em Authentication > URL Configuration > Redirect URLs, conferir a inclusão de `http://localhost:8081/auth/callback`. Manter também `myapp://auth/callback` para a build nativa. O campo Site URL foi mantido em `http://localhost:3000` durante a configuração mostrada; ele não substitui a lista de Redirect URLs.
+2. Em Authentication > URL Configuration > Redirect URLs, conferir a inclusão de `http://localhost:8081/auth/callback`. Manter também `myapp://auth/callback` para a build nativa. Para esse ambiente local, configurar Site URL como `http://localhost:8081` (ou a origem efetivamente utilizada). O valor antigo `http://localhost:3000` pertence ao histórico da falha de retorno; Site URL não substitui a lista de Redirect URLs.
 3. No app, selecionar “Entrar sem senha (magic link)”, informar o e-mail e solicitar o link.
 4. Abrir o e-mail mais recente e clicar em Sign in no mesmo navegador, perfil e dispositivo usados na solicitação, sem alternar para uma janela anônima.
 5. Confirmar o acesso a `/home`, agora com a interface Document AI.
@@ -98,7 +153,15 @@ Para validar o scheme nativo, usar uma development build com `myapp` registrado.
 
 ## Validação
 
-Executar `npx expo lint`, `npx tsc --noEmit` e `node --test tests/auth.test.cjs`.
+Executar na raiz do projeto:
+
+```bash
+npx expo lint
+npx tsc --noEmit
+node --test tests/auth.test.cjs
+```
+
+A suíte atual tem 11 testes do serviço: parâmetros do magic link, troca duplicada e limpeza do estado, código rejeitado, sucesso/cancelamento/fechamento do navegador nativo, retorno com erro ou sem código, navegação web, bloqueio no Expo Go, destino inesperado, provedor desabilitado e falha do navegador. Ela não testa a interface, a persistência real, a entrega de e-mails ou a configuração externa.
 
 Além dos testes web confirmados acima, permanecem pendentes:
 
@@ -124,7 +187,7 @@ Proteção de rotas controla a interface; configurar permissões/RLS para os dad
 - A tela `/home` agora apresenta o Document AI, com saudação, cartão principal e atalhos de IA. O visual foi aprovado pelo usuário.
 - Documentos exibem estado vazio. Importação, resumo, extração e perguntas ainda são apresentações com aviso “Em breve”; não há processamento ou armazenamento de documentos implementado.
 - O cabeçalho tem um botão “Sair” visível, com estado “Saindo…” e bloqueio durante a operação. Falhas aparecem na própria home. O avatar também abre a conta com e-mail e ação “Sair da conta”.
-- A configuração `lock: processLock` foi removida porque está descontinuada no Supabase instalado. Persistência, PKCE e renovação automática continuam configurados.
+- O cliente atual não define `lock: processLock`. Persistência, PKCE e renovação automática continuam configurados.
 - OAuth nativo verifica o destino do callback antes de trocar o código. Cancelar/fechar o navegador termina a tentativa sem erro; falhas do navegador ou recusa do provedor são tratadas.
 
 ### Histórico: estado OAuth expirado
