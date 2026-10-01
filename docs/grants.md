@@ -7,12 +7,14 @@ Implementação em andamento em 01/10/2026. O projeto Supabase atual foi autoriz
 | Passo | Estado atual |
 | --- | --- |
 | 1 — Esquema e permissões | Definidos neste documento. |
-| 2 — Migrações e RLS | Duas migrações revisadas e aplicadas no Supabase local completo; testes em andamento. |
-| 3 — Isolamento | 42 asserções PostgreSQL em execução; integração HTTP preparada. |
-| 4 — Storage | Bucket privado e políticas incluídos na migração local; testes de upload, revogação e exclusão pendentes. |
-| 5 — Interface | Tela protegida `/documents` implementada com upload, listas e gerenciamento; checagem de tipos aprovada após regenerar as rotas. Lint aprovado. |
+| 2 — Migrações e RLS | Duas migrações revisadas e aplicadas no Supabase local completo; testes aprovados. |
+| 3 — Isolamento | 42 asserções PostgreSQL e 9 testes de integração HTTP/Storage aprovados localmente. |
+| 4 — Storage | Bucket privado e políticas incluídos na migração local; upload, revogação e exclusão testados e aprovados localmente. |
+| 5 — Interface | Tela protegida `/documents` implementada com upload, listas e gerenciamento. Lint e tipos aprovados. No Android (Expo Go), a listagem e o upload de PDF já funcionam contra o remoto, depois de corrigir a leitura do arquivo (ver [Problemas encontrados](#problemas-encontrados)). |
 
-**Remoto:** vínculo e `db push --dry-run` concluídos. Nenhuma migração aplicada ao projeto remoto até esta atualização. A aplicação ocorrerá após a validação local.
+**Remoto:** as duas migrações foram aplicadas em 01/10/2026 com `db push`, depois de um `--dry-run` que listou apenas elas. Conferido no remoto logo após a aplicação: o bucket `documents` existe, é privado e estava vazio. Em seguida recebeu o primeiro documento enviado pelo app (ver [Validação no Android](#validação-no-android-expo-go-supabase-remoto)).
+
+**Plataformas:** o app é destinado a Android e iOS. A validação começa no **Android pelo Expo Go**. O iOS fica pendente.
 
 Arquivos de implementação:
 
@@ -122,15 +124,67 @@ Usar três contas: A (proprietário), B (leitor autorizado) e C (sem acesso), al
 - Requisições sem autenticação não acessam documentos nem compartilhamentos.
 - Os testes exercitam as regras diretamente pela API ou pelo banco sob os papéis apropriados, sem depender dos bloqueios da interface.
 
-A abertura do arquivo, a revogação no Storage e o isolamento das consultas de IA serão testados quando essas camadas forem implementadas. Os testes foram escritos e estão em execução/revisão. Os resultados serão registrados abaixo conforme forem confirmados.
+A abertura do arquivo, a revogação no Storage e o isolamento das consultas de IA serão testados quando essas camadas forem implementadas. Os testes de banco, API e Storage foram executados localmente; os resultados estão registrados abaixo.
 
-## Resultados de validação (atualizados durante a execução)
+## Resultados de validação
 
 - `npx expo lint`: aprovado.
 - `npx tsc --noEmit`: aprovado.
 - `node --test tests/auth.test.cjs tests/documents.test.cjs`: 14 testes aprovados, incluindo os 11 testes de autenticação existentes.
-- Ambiente local completo recriado com PostgreSQL 17.11 e Storage 1.79.28, usando imagens em cache. As duas migrações foram aplicadas. A suíte de 42 asserções PostgreSQL e a análise de funções SQL estão em execução; a integração HTTP vem em seguida.
-- Aplicação remota: ainda pendente; apenas `--dry-run` executado.
+- Ambiente local completo recriado com PostgreSQL 17.11 e Storage 1.79.28. As duas migrações foram aplicadas.
+- `npx supabase test db`: 42/42 asserções pgTAP aprovadas (`supabase/tests/documents_rls.test.sql`).
+- `RUN_DOCUMENT_INTEGRATION=1 node --test tests/documents.integration.test.cjs`: 9/9 testes aprovados com Auth, API e Storage reais (reserva, upload, leitura, compartilhamento, revogação, exclusão).
+- Aplicação remota: `db push` concluído em 01/10/2026; `migration list` ainda por confirmar.
+
+### Validação no Android (Expo Go, Supabase remoto)
+
+Duas contas reais: **A** (proprietária) e **B** (destinatária).
+
+- [ ] A envia um PDF e uma imagem; ambos aparecem em "Meus documentos" como "Arquivo disponível". **PDF aprovado em 01/10/2026**: status `uploaded`, 45 KB, caminho `<dono>/<documento>/original` conferido no bucket e na tabela. Imagem: pendente.
+- [ ] A abre o arquivo pela lista.
+- [ ] B não vê os documentos de A antes do compartilhamento.
+- [ ] A compartilha um documento com o e-mail de B; B o vê em "Compartilhados comigo" e consegue abrir.
+- [ ] B não consegue renomear, compartilhar nem excluir o documento de A.
+- [ ] A revoga o acesso; após atualizar, B não vê mais o documento.
+- [ ] A renomeia e exclui um documento; ele some da lista e do bucket.
+- [ ] Logout de A e login de B no mesmo aparelho não mostram dados de A.
+
+iOS: pendente.
+
+**Próximo passo ao retomar:** enviar uma imagem (PNG/JPEG), abrir um documento pela lista e seguir o checklist com a conta B.
+
+## Problemas encontrados
+
+### Upload falhava no Android pelo Expo Go — corrigido
+
+**Sintoma:** ao tocar em "+ Adicionar documento" e escolher um PDF, a tela mostrava a mensagem genérica "Não foi possível concluir. Confira sua conexão, atualize a lista e tente novamente." Nada chegava ao Supabase. A listagem não tinha erro: estava apenas vazia.
+
+**Erro real:** `Call to function 'FileSystemFile.bytes' has been rejected. → Caused by: Missing 'READ' permission for accessing the file.`
+
+**Causa:** bug conhecido do Expo Go no Android ([expo/expo#21792](https://github.com/expo/expo/issues/21792)). O `expo-document-picker` e o `expo-file-system` usam contextos Android diferentes dentro do Expo Go; a cópia que o seletor grava no cache (mesmo com `copyToCacheDirectory: true`) não pode ser lida pela classe `File`. Não ocorre em development build nem em build final. A documentação da SDK 57 confirma que o código usava a API corretamente.
+
+**Correção** (`src/features/documents/picker.ts`): no celular, os bytes passam a ser lidos com `fetch(asset.uri)` em vez de `File.arrayBuffer()`. A classe `File` continua sendo usada para o tamanho e para apagar a cópia temporária. Validado: upload de PDF concluído no Android.
+
+**Diagnóstico adicionado** (`src/features/documents/service.ts`): `documentError` registra o erro original com `console.warn('[documents]', ...)` **somente em desenvolvimento** (`__DEV__`). Assim a causa aparece no terminal do `expo start` e no aviso amarelo do app, enquanto o usuário continua vendo apenas a mensagem amigável.
+
+**Atenção:** quando houver development build, confirmar que a leitura por `fetch` também funciona nela, no Android e no iOS.
+
+### Arquivo enviado pelo painel do Supabase não aparece no app — comportamento esperado
+
+Um PDF enviado diretamente pelo painel (Storage → Upload files) ficou na raiz do bucket (`receita_OZIVY_30092026.pdf`) e não apareceu no app. O painel usa acesso administrativo: cria apenas o objeto, sem a linha em `documents`, sem dono e fora do padrão `<dono>/<documento>/original`. As políticas exigem essa linha, então o arquivo fica invisível para todos os usuários. Isso confirma o isolamento. Documentos devem ser enviados sempre pelo app.
+
+**Pendente:** apagar esse arquivo órfão pelo painel. Parece conter dados pessoais.
+
+### Consultar o bucket pelo terminal
+
+```bash
+# raiz do bucket (a barra final é obrigatória; sem ela a CLI lista só o próprio bucket)
+npx supabase storage ls ss:///documents/ --experimental --linked
+# tudo, incluindo subpastas
+npx supabase storage ls -r ss:///documents --experimental --linked
+```
+
+No bucket o arquivo se chama sempre `original`; o nome exibido no app vem da coluna `name` da tabela `documents`.
 
 ## Decisões da implementação em andamento
 
@@ -142,7 +196,7 @@ A abertura do arquivo, a revogação no Storage e o isolamento das consultas de 
 - Compartilhamento e consulta dos e-mails dos destinatários ocorrem por RPCs que verificam a propriedade. Não existe diretório público de usuários. A concessão continua limitada a contas existentes.
 - A tela tem listas paginadas de 20 itens, renomeação, compartilhamento, revogação e confirmação de exclusão. Arquivos abrem por URL assinada com validade de 60 segundos; URLs já emitidas não são invalidadas instantaneamente por revogação.
 - Cada serviço do app fica vinculado ao token que iniciou a operação; troca de conta recria a tela e limpa seu estado. A cópia temporária do seletor nativo é removida após a leitura. Arquivos exportados para outros aplicativos ficam fora desse controle.
-- Foram instalados `expo-document-picker` e `expo-file-system` via `expo install`, compatíveis com SDK 57. A validação em Android/iOS ainda está pendente.
+- Foram instalados `expo-document-picker` e `expo-file-system` via `expo install`, compatíveis com SDK 57. No Android, os bytes do arquivo escolhido são lidos com `fetch` (ver [Problemas encontrados](#problemas-encontrados)). Validação em iOS pendente.
 
 ## Como repetir a validação local
 

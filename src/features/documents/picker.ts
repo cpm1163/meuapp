@@ -13,7 +13,8 @@ export async function pickDocument() {
   try {
     const size = asset.file?.size ?? nativeFile?.size ?? asset.size;
     if (!size || size > MAX_FILE_BYTES) throw new Error('Escolha um arquivo de até 10 MB que não esteja vazio.');
-    const bytes = asset.file ? await asset.file.arrayBuffer() : await nativeFile!.arrayBuffer();
+    // On Android, Expo Go denies FileSystem reads of the picker's cache copy (expo/expo#21792); fetch reads it directly.
+    const bytes = asset.file ? await asset.file.arrayBuffer() : await (await fetch(asset.uri)).arrayBuffer();
     return { name: asset.name, bytes };
   } finally {
     // The picker copied this file into our cache. Do not retain private content after reading it.
