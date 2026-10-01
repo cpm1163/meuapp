@@ -50,14 +50,14 @@ select throws_ok($$select public.begin_document_delete('20000000-0000-0000-0000-
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000002',true);
 select is((select count(*) from public.documents),1::bigint,'reader sees shared document only');
 select is((select count(*) from storage.objects where bucket_id='documents'),1::bigint,'reader sees shared file');
-select is((with changed as (update storage.objects set metadata='{}' where bucket_id='documents' returning id) select count(*) from changed),0::bigint,'broad policy cannot allow object replacement');
+with changed as (update storage.objects set metadata='{}' where bucket_id='documents' returning id) select is((select count(*) from changed),0::bigint,'broad policy cannot allow object replacement');
 select is((select count(*) from public.document_shares),1::bigint,'reader sees own membership');
-select is((with changed as (update public.documents set name='Hacked' returning id) select count(*) from changed),0::bigint,'reader cannot rename');
+with changed as (update public.documents set name='Hacked' returning id) select is((select count(*) from changed),0::bigint,'reader cannot rename');
 select throws_ok($$delete from public.documents$$,'42501',null,'direct deletion forbidden');
 select throws_ok($$select public.begin_document_delete('20000000-0000-0000-0000-000000000001')$$,'42501',null,'reader cannot begin deletion');
 select throws_ok($$update public.document_shares set permission='owner'$$,'42501',null,'reader cannot escalate');
 select throws_ok($$select public.complete_document_upload('20000000-0000-0000-0000-000000000001')$$,'42501',null,'reader cannot finalize upload');
-select is((with removed as (delete from public.document_shares returning user_id) select count(*) from removed),0::bigint,'reader cannot revoke');
+with removed as (delete from public.document_shares returning user_id) select is((select count(*) from removed),0::bigint,'reader cannot revoke');
 
 select set_config('request.jwt.claim.sub','10000000-0000-0000-0000-000000000001',true);
 select lives_ok($$delete from public.document_shares where document_id='20000000-0000-0000-0000-000000000001'$$,'owner revokes');

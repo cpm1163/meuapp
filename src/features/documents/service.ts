@@ -91,6 +91,7 @@ export function detectDocumentType(buffer: ArrayBuffer) {
 }
 
 export function documentError(error: unknown): string {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) console.warn('[documents]', error);
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
   if (code === 'PGRST205' || code === 'PGRST202' || code === '42P01') return 'O serviço de documentos ainda não está disponível. Tente novamente mais tarde.';
   if (code === '23505') return 'Este documento já está compartilhado com essa pessoa.';
