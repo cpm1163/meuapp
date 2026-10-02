@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/providers/auth-provider";
 import { supabase } from "@/lib/supabase";
+import { createModuleService } from "@/features/modules/service";
+import { DevAccountSwitcher } from "@/features/dev/DevAccountSwitcher";
 
 const actions = [
   { symbol: "≡", title: "Resumir", subtitle: "Vá direto ao essencial", color: "#EEEAFE", ink: "#7050CC", description: "Transforme documentos longos em resumos com os pontos mais importantes." },
@@ -35,6 +37,18 @@ export default function Home() {
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [adminCheck, setAdminCheck] = useState<{ userId: string; value: boolean } | null>(null);
+  const modules = useMemo(() => session ? createModuleService(session.access_token) : null, [session]);
+  const userId = session?.user.id;
+
+  // Display only: the admin entry is hidden for other accounts and the database rejects non-admins anyway.
+  useEffect(() => {
+    let active = true;
+    if (modules && userId) void modules.isAdmin(userId).then(value => { if (active) setAdminCheck({ userId, value }); }).catch(() => {});
+    return () => { active = false; };
+  }, [modules, userId]);
+  // A result from a previous account never applies to the current one.
+  const isAdmin = !!adminCheck && adminCheck.userId === userId && adminCheck.value;
   const rawName = session?.user.user_metadata?.full_name;
   const name = typeof rawName === "string" ? rawName.trim().split(/\s+/)[0] : "";
   const initial = (name || session?.user.email || "D").charAt(0).toUpperCase();
@@ -132,6 +146,21 @@ export default function Home() {
           <Text style={styles.emptyDescription}>Acesse seus arquivos e os documentos compartilhados com você.</Text>
           <Pressable accessibilityRole="button" onPress={showImport} style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}><Text style={styles.emptyButtonText}>Abrir meus documentos  ↗</Text></Pressable>
         </View>
+        <View style={styles.sectionHeading}>
+          <Text style={styles.sectionTitle}>Módulos</Text>
+        </View>
+        <View style={styles.actionList}>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/modules")} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            <View style={[styles.actionIcon, { backgroundColor: "#E6F3EE" }]}><Text style={[styles.actionSymbol, { color: "#2B8065" }]}>◆</Text></View>
+            <View style={styles.actionCopy}><Text style={styles.actionTitle}>Meus módulos</Text><Text style={styles.actionSubtitle}>Recursos liberados para você</Text></View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+          {isAdmin && <Pressable accessibilityRole="button" onPress={() => router.push("/admin")} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            <View style={[styles.actionIcon, { backgroundColor: "#FFF1E4" }]}><Text style={[styles.actionSymbol, { color: "#AE6C2D" }]}>⚙</Text></View>
+            <View style={styles.actionCopy}><Text style={styles.actionTitle}>Administração</Text><Text style={styles.actionSubtitle}>Liberar módulos para contas</Text></View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>}
+        </View>
         <View style={styles.footer}><View style={styles.footerDot} /><Text style={styles.footerText}>Mais espaço para suas ideias.</Text></View>
       </ScrollView>
 
@@ -145,6 +174,7 @@ export default function Home() {
             {accountOpen && <>
               {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
               <Pressable accessibilityRole="button" accessibilityState={{ disabled: loading }} disabled={loading} onPress={signOut} style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}><Text style={styles.signOutText}>{loading ? "Saindo…" : "Sair da conta"}</Text></Pressable>
+              {!!userId && <DevAccountSwitcher currentUserId={userId} onDone={() => setAccountOpen(false)} />}
             </>}
             <Pressable accessibilityRole="button" onPress={() => { setPreview(null); setAccountOpen(false); }} style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}><Text style={styles.closeText}>{accountOpen ? "Voltar para home" : "Entendi"}</Text></Pressable>
           </View>

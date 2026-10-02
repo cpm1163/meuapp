@@ -14,6 +14,8 @@ function Routes() {
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="home" />
         <Stack.Screen name="documents" />
+        <Stack.Screen name="modules" />
+        <Stack.Screen name="admin" />
       </Stack.Protected>
       <Stack.Screen name="auth/callback" />
     </Stack>

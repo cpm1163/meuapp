@@ -40,3 +40,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# amostras reais com dados de saúde (não versionar)
+tests/fixtures/private/
