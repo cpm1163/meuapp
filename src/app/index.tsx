@@ -4,10 +4,12 @@ import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, Vi
 import { Button } from "@/components/Button";
 import { Input } from "@/components/input";
 import { Link } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { authErrorMessage, sendMagicLink, signInWithSocialProvider, socialProviders, type SocialProvider } from "@/lib/auth";
 
 export default function Index() {
+    const insets = useSafeAreaInsets();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [mode, setMode] = useState<"password" | "magic">("password");
@@ -61,7 +63,7 @@ export default function Index() {
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: "padding", android: "height" })}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <View style={styles.container}>
+                <View style={[styles.container, { paddingBottom: 32 + insets.bottom }]}>
                     <Image source={require("@/assets/img1.png")} style={styles.illustration} />
                     <Text style={styles.title}>Entrar</Text>
                     <Text style={styles.subtitle}>{mode === "magic" ? "Receba um link por e-mail para entrar ou criar sua conta." : "Acesse sua conta com e-mail e senha."}</Text>

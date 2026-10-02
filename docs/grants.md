@@ -10,11 +10,11 @@ Implementação em andamento em 01/10/2026. O projeto Supabase atual foi autoriz
 | 2 — Migrações e RLS | Duas migrações revisadas e aplicadas no Supabase local completo; testes aprovados. |
 | 3 — Isolamento | 42 asserções PostgreSQL e 9 testes de integração HTTP/Storage aprovados localmente. |
 | 4 — Storage | Bucket privado e políticas incluídos na migração local; upload, revogação e exclusão testados e aprovados localmente. |
-| 5 — Interface | Tela protegida `/documents` implementada com upload, listas e gerenciamento. Lint e tipos aprovados. No Android (Expo Go), a listagem e o upload de PDF já funcionam contra o remoto, depois de corrigir a leitura do arquivo (ver [Problemas encontrados](#problemas-encontrados)). |
+| 5 — Interface | Tela protegida `/documents` implementada com upload, listas e gerenciamento. Lint e tipos aprovados. Checklist completo aprovado no Android (Expo Go) contra o remoto em 02/10/2026. iOS pendente. |
 
 **Remoto:** as duas migrações foram aplicadas em 01/10/2026 com `db push`, depois de um `--dry-run` que listou apenas elas. Conferido no remoto logo após a aplicação: o bucket `documents` existe, é privado e estava vazio. Em seguida recebeu o primeiro documento enviado pelo app (ver [Validação no Android](#validação-no-android-expo-go-supabase-remoto)).
 
-**Plataformas:** o app é destinado a Android e iOS. A validação começa no **Android pelo Expo Go**. O iOS fica pendente.
+**Plataformas:** o app é destinado a Android e iOS. A validação começa no **Android pelo Expo Go**, conectado pela rede local (WSL em modo de rede espelhada e `expo start --lan`; o túnel ngrok caía com frequência). O iOS fica pendente.
 
 Arquivos de implementação:
 
@@ -134,24 +134,24 @@ A abertura do arquivo, a revogação no Storage e o isolamento das consultas de 
 - Ambiente local completo recriado com PostgreSQL 17.11 e Storage 1.79.28. As duas migrações foram aplicadas.
 - `npx supabase test db`: 42/42 asserções pgTAP aprovadas (`supabase/tests/documents_rls.test.sql`).
 - `RUN_DOCUMENT_INTEGRATION=1 node --test tests/documents.integration.test.cjs`: 9/9 testes aprovados com Auth, API e Storage reais (reserva, upload, leitura, compartilhamento, revogação, exclusão).
-- Aplicação remota: `db push` concluído em 01/10/2026; `migration list` ainda por confirmar.
+- Aplicação remota: `db push` concluído em 01/10/2026; `migration list` conferido em 02/10/2026, com as duas migrações presentes no local e no remoto.
 
 ### Validação no Android (Expo Go, Supabase remoto)
 
 Duas contas reais: **A** (proprietária) e **B** (destinatária).
 
-- [ ] A envia um PDF e uma imagem; ambos aparecem em "Meus documentos" como "Arquivo disponível". **PDF aprovado em 01/10/2026**: status `uploaded`, 45 KB, caminho `<dono>/<documento>/original` conferido no bucket e na tabela. Imagem: pendente.
-- [ ] A abre o arquivo pela lista.
-- [ ] B não vê os documentos de A antes do compartilhamento.
-- [ ] A compartilha um documento com o e-mail de B; B o vê em "Compartilhados comigo" e consegue abrir.
-- [ ] B não consegue renomear, compartilhar nem excluir o documento de A.
-- [ ] A revoga o acesso; após atualizar, B não vê mais o documento.
-- [ ] A renomeia e exclui um documento; ele some da lista e do bucket.
-- [ ] Logout de A e login de B no mesmo aparelho não mostram dados de A.
+- [x] A envia um PDF e uma imagem; ambos aparecem em "Meus documentos" como "Arquivo disponível". **PDF aprovado em 01/10/2026**: status `uploaded`, 45 KB, caminho `<dono>/<documento>/original` conferido no bucket e na tabela. **Imagem aprovada em 02/10/2026**: JPEG 1080×2340, 850 KB, gravado em `<dono>/<documento>/original` (conferido no bucket).
+- [x] A abre o arquivo pela lista. **Aprovado em 02/10/2026.**
+- [x] B não vê os documentos de A antes do compartilhamento. **Confirmado pelo usuário em 02/10/2026** com um documento novo de A, sem compartilhar.
+- [x] A compartilha um documento com o e-mail de B; B o vê em "Compartilhados comigo" e consegue abrir. **Compartilhamento aprovado em 02/10/2026**: A compartilhou uma imagem JPEG com o e-mail de B; B a vê em "Compartilhados comigo" como "Acesso de leitura". B abriu o arquivo. **Confirmado pelo usuário.**
+- [x] B não consegue renomear, compartilhar nem excluir o documento de A. **Aprovado na interface em 02/10/2026**: para B o cartão mostra apenas "Abrir arquivo" e "Acesso de leitura". O bloqueio no servidor está coberto pelos testes pgTAP e de integração.
+- [x] A revoga o acesso; após atualizar, B não vê mais o documento. **Confirmado pelo usuário em 02/10/2026.**
+- [x] A renomeia e exclui um documento; ele some da lista e do bucket. **Aprovado em 02/10/2026**: renomeação e exclusão confirmadas pelo usuário no app; o objeto `<dono>/c81bd952-…/original` deixou de existir no bucket.
+- [x] Logout de A e login de B no mesmo aparelho não mostram dados de A. **Confirmado pelo usuário em 02/10/2026** nas trocas de conta dos testes de compartilhamento.
 
-iOS: pendente.
+iOS: pendente. Sem aparelho iOS disponível em 02/10/2026 (iPhone em conserto); retomar quando ele voltar.
 
-**Próximo passo ao retomar:** enviar uma imagem (PNG/JPEG), abrir um documento pela lista e seguir o checklist com a conta B.
+**Android concluído em 02/10/2026.** **Próximo passo ao retomar:** repetir o checklist no iOS quando houver aparelho disponível.
 
 ## Problemas encontrados
 
