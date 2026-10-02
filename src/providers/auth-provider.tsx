@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from "react";
 import { AppState, Platform } from "react-native";
 import { supabase } from "@/lib/supabase";
+import { trackAuthEvent } from "@/features/dev/account-switcher";
 
 const AuthContext = createContext<{ session: Session | null; loading: boolean }>({
   session: null, loading: true,
@@ -17,6 +18,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let receivedEvent = false;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, next) => {
       if (event === "SIGNED_OUT") clearAuthCallbackState();
+      trackAuthEvent(event, next);
       receivedEvent = true;
       if (active) { setSession(next); setLoading(false); }
     });
