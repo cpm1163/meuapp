@@ -13,8 +13,10 @@ import {
 } from "@/utils/validation";
 
 import { Link } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function SignUp(){
+    const insets = useSafeAreaInsets();
     // behavior define como ajustar o layout ao abrir o teclado para evitar que ele cubra o campo de senha.
     // Platform.select define o ajuste ao abrir o teclado: "padding" no iOS e "height" no Android.
     const [name, setName] = useState("");
@@ -120,7 +122,7 @@ export default function SignUp(){
                 keyboardShouldPersistTaps="handled"
                 showsHorizontalScrollIndicator={false}
             >
-                <View style={styles.container}>
+                <View style={[styles.container, { paddingBottom: 32 + insets.bottom }]}>
                     <Image source={require("@/assets/img2.png")}
                     style={styles.illustration}
                     />
