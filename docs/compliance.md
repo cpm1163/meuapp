@@ -108,7 +108,7 @@ Papéis (`user` e `admin`), catálogo de módulos e liberação de módulos pelo
 4. A função confere a autorização, marca o documento como `processing`, baixa o arquivo do bucket privado e o envia à IA.
 5. A IA devolve **somente a extração**, em formato JSON fixo (saída estruturada), sem opinião.
 6. A função valida o JSON, gera os pontos de atenção **em código** e grava o resultado.
-7. O documento passa a `ready` (análise concluída) ou `failed` (erro). Proprietário e leitores autorizados veem o resultado.
+7. O documento passa a `ready` (análise concluída) ou `failed` (erro). Só o proprietário vê o resultado, salvo se ele decidir compartilhar a análise.
 
 Divisão de responsabilidades: a IA **lê e transcreve**; o código **compara e aponta**. Comparações ficam em código determinístico e testável. As verificações de consistência também detectam erros de leitura da IA.
 
@@ -241,10 +241,10 @@ O aceite de termos do módulo substitui a tabela `ai_consents` prevista na vers�
 | Operação | Proprietário com módulo ativo | Proprietário sem módulo | Leitor autorizado | Outro usuário | Sem autenticação |
 | --- | --- | --- | --- | --- | --- |
 | Pedir análise | Sim | Não | Não | Não | Não |
-| Ver resultado da análise | Sim | Sim | **Sim** (decidido em 02/10/2026; manter mesmo sem módulo depende da decisão em [profiles.md](profiles.md)) | Não | Não |
+| Ver resultado da análise | Sim | Sim | **Só se o proprietário compartilhar a análise** (decidido em 03/10/2026, ver [profiles.md](profiles.md)) | Não | Não |
 | Excluir análise | Via exclusão do documento | Via exclusão do documento | Não | Não | Não |
 
-Somente o proprietário com o módulo liberado pede análise, porque isso envolve o contrato do módulo e o envio do documento a terceiro. Revogar o compartilhamento bloqueia também o acesso do leitor às análises. Excluir o documento remove suas análises.
+Somente o proprietário com o módulo liberado pede análise, porque isso envolve o contrato do módulo e o envio do documento a terceiro. Compartilhar o documento **não** compartilha as análises: a análise é de quem a pediu, e compartilhá-la é uma decisão separada do proprietário (o mecanismo é definido nesta fase). Revogar o compartilhamento bloqueia também o acesso do leitor às análises que tiverem sido compartilhadas. Excluir o documento remove suas análises.
 
 ## Função de análise (servidor)
 
@@ -335,7 +335,7 @@ Recebida em 02/10/2026: PDF de laboratório de grande rede, 1,4 MB, **26 página
 - Um documento que não é laudo laboratorial termina como "documento não reconhecido", sem extração inventada.
 - Uma foto ilegível termina pedindo nova foto.
 - JSON com exame faltando, marcação divergente ou VCM alterado gera o alerta correspondente (teste automatizado, sem IA).
-- B (leitor) vê o resultado mas não consegue pedir análise; C e requisições sem autenticação não acessam análises.
+- B (leitor do documento) não vê a análise até o proprietário compartilhá-la e não consegue pedir análise; C e requisições sem autenticação não acessam análises.
 - Revogar o compartilhamento remove o acesso de B às análises; excluir o documento remove as análises.
 - Sem liberação ativa do módulo ou sem aceite da versão vigente dos termos, a função recusa a análise.
 - A chave do provedor não aparece no bundle do app nem nos logs.
@@ -357,7 +357,7 @@ Recebida em 02/10/2026: PDF de laboratório de grande rede, 1,4 MB, **26 página
 ## Decisões
 
 - [x] Escopo: laudo laboratorial completo, nível A, voltado ao médico (02/10/2026).
-- [x] Leitor autorizado vê o resultado da análise (02/10/2026).
+- [x] ~~Leitor autorizado vê o resultado da análise (02/10/2026).~~ Substituída em 03/10/2026: a análise é só de quem a pediu; compartilhá-la é decisão do proprietário ([profiles.md](profiles.md)).
 - [x] Modelo de IA: Claude Opus 5.5 na versão inicial (02/10/2026). Teste comparativo com modelos mais baratos depois que a análise estiver funcionando.
 - [x] Direção de produto: módulos de análise oferecidos por profissional, implementados como skills do Claude; laudo laboratorial é o primeiro módulo (02/10/2026).
 - [x] Ciclo de vida dos módulos (fonte no repositório, testes, versão fixa, rastreabilidade) ; catálogo, liberação de módulos e administração na FASE 02, ver [profiles.md](profiles.md) (02/10/2026).

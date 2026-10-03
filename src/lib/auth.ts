@@ -12,7 +12,7 @@ export type SocialProvider = (typeof socialProviders)[number]["id"];
 export function getAuthRedirectUrl() {
   return Platform.OS === "web"
     ? new URL("/auth/callback", window.location.origin).toString()
-    : Linking.createURL("auth/callback", { scheme: "myapp" });
+    : Linking.createURL("auth/callback", { scheme: "examesia" });
 }
 
 // Router and the native browser can deliver the same callback concurrently.

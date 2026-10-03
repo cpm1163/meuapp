@@ -6,11 +6,19 @@ export type MyModule = {
   description: string;
   module_status: 'draft' | 'testing' | 'active' | 'disabled';
   granted_at: string;
-  expires_at: string | null;
+  expires_at: string;
   active: boolean;
   terms_version: string;
   terms_accepted: boolean;
 };
+export type RequestableModule = {
+  module_id: string;
+  name: string;
+  description: string;
+  module_status: MyModule['module_status'];
+  requested_at: string | null;
+};
+export type ModuleRequest = { request_id: string; user_id: string; email: string; module_id: string; requested_at: string };
 export type CatalogModule = { id: string; name: string; status: MyModule['module_status'] };
 export type FoundUser = { user_id: string; email: string };
 export type ModuleGrant = {
@@ -19,11 +27,14 @@ export type ModuleGrant = {
   email: string;
   module_id: string;
   granted_at: string;
-  expires_at: string | null;
+  expires_at: string;
   revoked_at: string | null;
   active: boolean;
   note: string | null;
 };
+
+// Every grant lasts this long; the database sets the expiration.
+export const GRANT_DAYS = 30;
 
 // Each operation stays bound to the session that initiated it, even during account switches.
 // Authorization is enforced by the database; the client checks only decide what to show.
@@ -47,6 +58,24 @@ export function createModuleService(accessToken: string) {
     },
     async acceptTerms(moduleId: string) {
       const { error } = await client.rpc('accept_module_terms', { module_id: moduleId });
+      if (error) throw error;
+    },
+    async requestableModules() {
+      const { data, error } = await client.rpc('requestable_modules');
+      if (error) throw error;
+      return data as RequestableModule[];
+    },
+    async requestModule(moduleId: string) {
+      const { error } = await client.rpc('request_module', { module_id: moduleId });
+      if (error) throw error;
+    },
+    async pendingRequests() {
+      const { data, error } = await client.rpc('admin_list_module_requests');
+      if (error) throw error;
+      return data as ModuleRequest[];
+    },
+    async closeRequest(requestId: string) {
+      const { error } = await client.rpc('admin_close_module_request', { request_id: requestId });
       if (error) throw error;
     },
     async catalog() {

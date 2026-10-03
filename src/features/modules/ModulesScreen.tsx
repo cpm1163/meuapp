@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createModuleService, formatDate, moduleError, type MyModule } from './service';
-import { MODULE_CONTACT_DRAFT, MODULE_TERMS_DRAFT } from './terms';
+import { createModuleService, formatDate, GRANT_DAYS, moduleError, type MyModule, type RequestableModule } from './service';
+import { MODULE_TERMS_DRAFT } from './terms';
 import { Action, styles } from './ui';
 
 type Props = { accessToken: string };
@@ -12,13 +12,20 @@ const moduleStatuses: Record<MyModule['module_status'], string> = {
 };
 
 function accessLabel(item: MyModule) {
-  if (!item.active) return item.expires_at && new Date(item.expires_at) <= new Date() ? 'Liberação vencida' : 'Liberação encerrada';
-  return item.expires_at ? `Liberado até ${formatDate(item.expires_at)}` : 'Liberado';
+  if (!item.active) return new Date(item.expires_at) <= new Date() ? 'Liberação vencida' : 'Liberação encerrada';
+  return `Liberado até ${formatDate(item.expires_at)}`;
+}
+
+function requestError(error: unknown) {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+  return code === '23505' ? 'Você já tem uma solicitação em andamento para este módulo.' : moduleError(error);
 }
 
 export function ModulesScreen({ accessToken }: Props) {
   const service = useMemo(() => createModuleService(accessToken), [accessToken]);
   const [modules, setModules] = useState<MyModule[]>([]);
+  const [requestable, setRequestable] = useState<RequestableModule[]>([]);
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -26,21 +33,22 @@ export function ModulesScreen({ accessToken }: Props) {
   const mounted = useRef(true);
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const load = useCallback(() => Promise.all([service.myModules(), service.requestableModules()]), [service]);
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await service.myModules();
-      if (mounted.current) setModules(rows);
+      const [mine, open] = await load();
+      if (mounted.current) { setModules(mine); setRequestable(open); }
     } catch (e) {
-      if (mounted.current) { setModules([]); setError(moduleError(e)); }
+      if (mounted.current) { setModules([]); setRequestable([]); setError(moduleError(e)); }
     } finally { if (mounted.current) setLoading(false); }
-  }, [service]);
+  }, [load]);
   useEffect(() => {
     let active = true;
-    void service.myModules().then(rows => { if (active) { setModules(rows); setLoading(false); } })
-      .catch(e => { if (active) { setModules([]); setError(moduleError(e)); setLoading(false); } });
+    void load().then(([mine, open]) => { if (active) { setModules(mine); setRequestable(open); setLoading(false); } })
+      .catch(e => { if (active) { setModules([]); setRequestable([]); setError(moduleError(e)); setLoading(false); } });
     return () => { active = false; };
-  }, [service]);
+  }, [load]);
 
   async function accept(item: MyModule) {
     if (busy) return;
@@ -52,12 +60,33 @@ export function ModulesScreen({ accessToken }: Props) {
     finally { if (mounted.current) { setBusy(false); await refresh(); } }
   }
 
+  async function request(moduleId: string) {
+    if (busy) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await service.requestModule(moduleId);
+      if (mounted.current) setNotice('Solicitação enviada. O administrador entrará em contato.');
+    } catch (e) { if (mounted.current) setError(requestError(e)); }
+    finally { if (mounted.current) { setBusy(false); await refresh(); } }
+  }
+
+  // Shown on an expired or revoked card, or in the list of modules not yet granted.
+  function requestAction(item: RequestableModule | undefined, renewal: boolean) {
+    if (!item) return null;
+    if (item.requested_at) return <Text style={styles.hint}>Solicitação enviada em {formatDate(item.requested_at)}. O administrador entrará em contato.</Text>;
+    return <Action title={renewal ? 'Solicitar nova liberação' : 'Solicitar este módulo'} disabled={busy} onPress={() => void request(item.module_id)} />;
+  }
+  const granted = new Set(modules.map(item => item.module_id));
+  const notGranted = requestable.filter(item => !granted.has(item.module_id));
+
   const header = <View style={styles.header}>
     <Action title="‹ Voltar" onPress={() => router.back()} />
     <Text style={styles.title}>Meus módulos</Text>
     <Text style={styles.subtitle}>Recursos de análise liberados para a sua conta.</Text>
+    <Text style={styles.hint}>Cada liberação vale por {GRANT_DAYS} dias corridos.</Text>
     {!!error && !terms && <Text accessibilityRole="alert" style={styles.danger}>{error}</Text>}
-    <Action title="Atualizar lista" onPress={() => { setError(''); void refresh(); }} disabled={busy || loading} />
+    {!!notice && <Text accessibilityLiveRegion="polite" style={styles.success}>{notice}</Text>}
+    <Action title="Atualizar lista" onPress={() => { setError(''); setNotice(''); void refresh(); }} disabled={busy || loading} />
   </View>;
 
   return <SafeAreaView style={styles.screen}>
@@ -65,7 +94,16 @@ export function ModulesScreen({ accessToken }: Props) {
       ListHeaderComponent={header}
       ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Carregando módulos" /> : <View style={styles.card}>
         <Text style={styles.cardTitle}>Nenhum módulo liberado</Text>
-        <Text style={styles.subtitle}>{MODULE_CONTACT_DRAFT}</Text>
+        <Text style={styles.subtitle}>Solicite um módulo abaixo e o administrador entrará em contato para combinar a contratação.</Text>
+      </View>}
+      ListFooterComponent={loading || notGranted.length === 0 ? null : <View style={{ gap: 12, marginTop: 12 }}>
+        <Text style={styles.cardTitle}>Módulos disponíveis</Text>
+        {notGranted.map(item => <View key={item.module_id} style={styles.card}>
+          <Text style={styles.cardTitle}>{item.name}</Text>
+          {!!item.description && <Text style={styles.subtitle}>{item.description}</Text>}
+          <Text style={styles.hint}>Módulo: {moduleStatuses[item.module_status]}</Text>
+          {requestAction(item, false)}
+        </View>)}
       </View>}
       renderItem={({ item }) => <View style={styles.card}>
         <Text style={styles.cardTitle}>{item.name}</Text>
@@ -76,6 +114,7 @@ export function ModulesScreen({ accessToken }: Props) {
           ? <Text style={styles.hint}>Termos de uso aceitos (versão {item.terms_version}).</Text>
           : <Action title="Ler e aceitar os termos" disabled={busy} onPress={() => { setError(''); setTerms(item); }} />)}
         {item.active && item.module_status !== 'active' && <Text style={styles.hint}>A análise ficará disponível quando o módulo for ativado.</Text>}
+        {!item.active && requestAction(requestable.find(row => row.module_id === item.module_id), true)}
       </View>} />
 
     <Modal visible={!!terms} transparent animationType="fade" onRequestClose={() => { if (!busy) setTerms(null); }}>

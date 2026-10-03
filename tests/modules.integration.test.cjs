@@ -44,6 +44,17 @@ test('modules: admin role, grants and terms through the real API', { skip: !enab
       assert.deepEqual(ok(await b.client.rpc('my_modules')), []);
     });
 
+    await t.test('user requests a module; admin sees the request', async () => {
+      denied(await b.client.from('module_requests').insert({ user_id: b.user.id, module_id: moduleId }));
+      ok(await b.client.rpc('request_module', { module_id: moduleId }));
+      denied(await b.client.rpc('request_module', { module_id: moduleId }));
+      assert.ok(ok(await b.client.rpc('requestable_modules')).find((row) => row.module_id === moduleId).requested_at);
+      denied(await b.client.rpc('admin_list_module_requests'));
+      assert.deepEqual(ok(await c.client.from('module_requests').select('*')), []);
+      const pending = ok(await a.client.rpc('admin_list_module_requests'));
+      assert.ok(pending.some((row) => row.user_id === b.user.id && row.email === b.email && row.module_id === moduleId));
+    });
+
     await t.test('admin finds by exact e-mail and grants the module', async () => {
       assert.equal(ok(await a.client.from('app_admins').select('*')).length, 1);
       const found = ok(await a.client.rpc('admin_find_user', { search_email: b.email.toUpperCase() }));
@@ -51,6 +62,9 @@ test('modules: admin role, grants and terms through the real API', { skip: !enab
       assert.deepEqual(ok(await a.client.rpc('admin_find_user', { search_email: 'buyer-' })), []);
       grant = ok(await a.client.rpc('admin_grant_module', { user_id: b.user.id, module_id: moduleId, note: 'contrato teste' }));
       assert.equal(grant.granted_by, a.user.id);
+      assert.equal(new Date(grant.expires_at) - new Date(grant.granted_at), 30 * 24 * 60 * 60 * 1000);
+      const pending = ok(await a.client.rpc('admin_list_module_requests'));
+      assert.ok(!pending.some((row) => row.user_id === b.user.id), 'granting closes the request');
       denied(await a.client.rpc('admin_grant_module', { user_id: b.user.id, module_id: moduleId }));
       const listed = ok(await a.client.rpc('admin_list_module_grants', { filter_module_id: moduleId }));
       assert.ok(listed.some((row) => row.user_id === b.user.id && row.email === b.email && row.active));
@@ -100,6 +114,8 @@ test('modules: admin role, grants and terms through the real API', { skip: !enab
       denied(await anonymous.from('analysis_modules').select('*'));
       denied(await anonymous.from('module_grants').select('*'));
       denied(await anonymous.rpc('my_modules'));
+      denied(await anonymous.rpc('request_module', { module_id: moduleId }));
+      denied(await anonymous.from('module_requests').select('*'));
       denied(await anonymous.rpc('admin_find_user', { search_email: b.email }));
     });
   } finally {

@@ -3,13 +3,13 @@ import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { validateEmail } from '@/utils/validation';
-import { createModuleService, formatDate, moduleError, type CatalogModule, type FoundUser, type ModuleGrant } from './service';
+import { createModuleService, formatDate, GRANT_DAYS, moduleError, type CatalogModule, type FoundUser, type ModuleGrant, type ModuleRequest } from './service';
 import { Action, styles } from './ui';
 
 type Props = { userId: string; accessToken: string };
 
 function grantLabel(grant: ModuleGrant) {
-  if (grant.active) return grant.expires_at ? `Ativa até ${formatDate(grant.expires_at)}` : 'Ativa';
+  if (grant.active) return `Ativa até ${formatDate(grant.expires_at)}`;
   if (grant.revoked_at) return `Revogada em ${formatDate(grant.revoked_at)}`;
   return 'Vencida';
 }
@@ -18,6 +18,7 @@ export function AdminScreen({ userId, accessToken }: Props) {
   const service = useMemo(() => createModuleService(accessToken), [accessToken]);
   const [admin, setAdmin] = useState<boolean | null>(null);
   const [catalog, setCatalog] = useState<CatalogModule[]>([]);
+  const [requests, setRequests] = useState<ModuleRequest[]>([]);
   const [email, setEmail] = useState('');
   const [found, setFound] = useState<FoundUser | null>(null);
   const [searched, setSearched] = useState(false);
@@ -38,8 +39,8 @@ export function AdminScreen({ userId, accessToken }: Props) {
         if (!mounted.current) return;
         setAdmin(isAdmin);
         if (isAdmin) {
-          const rows = await service.catalog();
-          if (mounted.current) { setCatalog(rows); setModuleId(rows.find(row => row.status !== 'disabled')?.id ?? ''); }
+          const [rows, pending] = await Promise.all([service.catalog(), service.pendingRequests()]);
+          if (mounted.current) { setCatalog(rows); setRequests(pending); setModuleId(rows.find(row => row.status !== 'disabled')?.id ?? ''); }
         }
       } catch (e) { if (mounted.current) { setAdmin(false); setError(moduleError(e)); } }
     })();
@@ -59,11 +60,16 @@ export function AdminScreen({ userId, accessToken }: Props) {
     if (mounted.current) setGrants(rows);
   }
 
-  function search() {
-    const invalid = validateEmail(email);
+  async function reloadRequests() {
+    const rows = await service.pendingRequests();
+    if (mounted.current) setRequests(rows);
+  }
+
+  function search(target = email) {
+    const invalid = validateEmail(target);
     if (invalid) { setError(invalid); return; }
     void run(async () => {
-      const user = await service.findUser(email);
+      const user = await service.findUser(target);
       if (!mounted.current) return;
       setFound(user); setSearched(true); setGrants([]); setNote(''); setConfirmRevoke(null);
       if (user) await reloadGrants(user);
@@ -88,10 +94,27 @@ export function AdminScreen({ userId, accessToken }: Props) {
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Solicitações pendentes</Text>
+        {requests.length === 0 && <Text style={styles.subtitle}>Nenhuma solicitação no momento.</Text>}
+        {requests.map(item => <View key={item.request_id} style={{ gap: 6, paddingVertical: 6 }}>
+          <Text style={styles.subtitle}>{item.email}</Text>
+          <Text style={styles.hint}>{catalog.find(row => row.id === item.module_id)?.name ?? item.module_id} · pedido em {formatDate(item.requested_at)}</Text>
+          <View style={styles.actions}>
+            <Action title="Abrir conta" disabled={busy} onPress={() => { setEmail(item.email); search(item.email); }} />
+            <Action title="Encerrar sem liberar" disabled={busy} onPress={() => void run(async () => {
+              await service.closeRequest(item.request_id);
+              if (mounted.current) setNotice('Solicitação encerrada.');
+              await reloadRequests();
+            })} />
+          </View>
+        </View>)}
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Buscar conta</Text>
         <TextInput accessibilityLabel="E-mail da conta" placeholder="E-mail exato da conta" keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
-          value={email} onChangeText={text => { setEmail(text); setSearched(false); setFound(null); setGrants([]); }} editable={!busy} onSubmitEditing={search} style={styles.input} />
-        <Action title={busy ? 'Aguarde…' : 'Buscar'} disabled={busy || !email.trim()} onPress={search} />
+          value={email} onChangeText={text => { setEmail(text); setSearched(false); setFound(null); setGrants([]); }} editable={!busy} onSubmitEditing={() => search()} style={styles.input} />
+        <Action title={busy ? 'Aguarde…' : 'Buscar'} disabled={busy || !email.trim()} onPress={() => search()} />
         {searched && !found && <Text style={styles.hint}>Nenhuma conta encontrada com este e-mail.</Text>}
       </View>
 
@@ -128,12 +151,13 @@ export function AdminScreen({ userId, accessToken }: Props) {
         </View>
         <TextInput accessibilityLabel="Nota interna da contratação" placeholder="Nota interna (opcional, sem dados de pagamento)" value={note} onChangeText={setNote}
           maxLength={500} editable={!busy} style={styles.input} />
+        <Text style={styles.hint}>A liberação vale por {GRANT_DAYS} dias corridos a partir de agora.</Text>
         {hasActive
           ? <Text style={styles.hint}>Esta conta já tem este módulo ativo.</Text>
           : <Action title={busy ? 'Aguarde…' : 'Liberar módulo'} disabled={busy || !moduleId} onPress={() => void run(async () => {
             await service.grant(found.user_id, moduleId, note);
             if (mounted.current) { setNote(''); setNotice('Módulo liberado.'); }
-            await reloadGrants(found);
+            await Promise.all([reloadGrants(found), reloadRequests()]);
           })} />}
       </View>}
     </ScrollView>
