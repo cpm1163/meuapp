@@ -34,7 +34,7 @@ A lista `socialProviders` em `src/lib/auth.ts` contém somente `google`, e a tel
 4. A orientação foi ajustar a Site URL local para a origem do app (`http://localhost:8081` no teste), conferir `/auth/callback` em Redirect URLs e iniciar um novo login.
 5. Depois de uma nova tentativa, o usuário confirmou o sucesso na web. A falha anterior fica como histórico, não como bloqueio atual do Google.
 
-A configuração usa dois retornos distintos: o Google recebe o callback **do Supabase** (`https://SEU_PROJETO.supabase.co/auth/v1/callback`); o Supabase recebe o callback **do app** na lista de Redirect URLs (`http://localhost:8081/auth/callback` na web local ou `myapp://auth/callback` na build nativa). Client ID e Client Secret do Google ficam no provedor do Supabase; o app usa apenas a URL e a chave pública do Supabase.
+A configuração usa dois retornos distintos: o Google recebe o callback **do Supabase** (`https://SEU_PROJETO.supabase.co/auth/v1/callback`); o Supabase recebe o callback **do app** na lista de Redirect URLs (`http://localhost:8081/auth/callback` na web local ou `examesia://auth/callback` na build nativa). Client ID e Client Secret do Google ficam no provedor do Supabase; o app usa apenas a URL e a chave pública do Supabase.
 
 Próximas validações específicas do Google: persistência após recarregar, cancelamento, recusa de acesso e login em development build Android/iOS. O app bloqueia esse OAuth no Expo Go. O passo a passo está em [Configurar Google](#configurar-google).
 
@@ -71,7 +71,7 @@ O intervalo de 60 segundos começa após um envio de magic link bem-sucedido e f
 - [x] Email provider habilitado em Authentication > Sign In / Providers.
 - [x] Allow new users to sign up ativado.
 - [x] Confirm email mantido ativado.
-- [x] `myapp://auth/callback` cadastrado em Redirect URLs para a futura build instalada.
+- [x] `examesia://auth/callback` cadastrado em Redirect URLs para a build instalada (03/10/2026). Nesse dia o scheme provisório `myapp` foi trocado por `examesia` ([dev-build.md](dev-build.md)) e o `myapp://auth/callback` foi removido.
 - [x] Retorno web para `http://localhost:8081/auth/callback` funcionando no teste local.
 - [x] E-mail de magic link recebido no endereço utilizado no teste.
 - [x] Login concluído no Chrome, chegando a `/home` com a mensagem “Você está conectado”.
@@ -85,7 +85,7 @@ O intervalo de 60 segundos começa após um envio de magic link bem-sucedido e f
 ### Como repetir o teste web
 
 1. Executar `npm run web` no projeto e abrir `http://localhost:8081` (ajustar a porta se necessário).
-2. Em Authentication > URL Configuration > Redirect URLs, conferir a inclusão de `http://localhost:8081/auth/callback`. Manter também `myapp://auth/callback` para a build nativa. Para esse ambiente local, configurar Site URL como `http://localhost:8081` (ou a origem efetivamente utilizada). O valor antigo `http://localhost:3000` pertence ao histórico da falha de retorno; Site URL não substitui a lista de Redirect URLs.
+2. Em Authentication > URL Configuration > Redirect URLs, conferir a inclusão de `http://localhost:8081/auth/callback`. Manter também `examesia://auth/callback` para a build nativa. Para esse ambiente local, configurar Site URL como `http://localhost:8081` (ou a origem efetivamente utilizada). O valor antigo `http://localhost:3000` pertence ao histórico da falha de retorno; Site URL não substitui a lista de Redirect URLs.
 3. No app, selecionar “Entrar sem senha (magic link)”, informar o e-mail e solicitar o link.
 4. Abrir o e-mail mais recente e clicar em Sign in no mesmo navegador, perfil e dispositivo usados na solicitação, sem alternar para uma janela anônima.
 5. Confirmar o acesso a `/home`, agora com a interface Document AI.
@@ -96,7 +96,7 @@ O intervalo de 60 segundos começa após um envio de magic link bem-sucedido e f
 
 Uma tentativa chegou ao callback, mas exibiu “Não foi possível validar o link”. As capturas mostravam o app anteriormente no Edge e o link aberto no Chrome. A troca de navegador foi apontada como causa provável, pois o verificador PKCE fica salvo no navegador que iniciou o acesso. Depois de solicitar um novo link e concluir o fluxo no Chrome, o login funcionou.
 
-O endereço `myapp://auth/callback` identifica o retorno para uma build instalada com o scheme `myapp`. Para o teste realizado no navegador, o retorno usado foi `http://localhost:8081/auth/callback`.
+O endereço `examesia://auth/callback` identifica o retorno para uma build instalada com o scheme `examesia`. Para o teste realizado no navegador, o retorno usado foi `http://localhost:8081/auth/callback`.
 
 ## Configurar Supabase
 
@@ -104,7 +104,7 @@ Manter no `.env` somente `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBL
 
 Em Authentication > URL Configuration:
 
-- Adicionar `myapp://auth/callback` em Redirect URLs para a build nativa.
+- Adicionar `examesia://auth/callback` em Redirect URLs para a build nativa.
 - Adicionar `http://localhost:8081/auth/callback` para web local (ajustar à porta utilizada).
 - Adicionar `https://SEU_DOMINIO/auth/callback` para web publicada e definir a Site URL real.
 - Se alterar o scheme em `app.json`, atualizar `getAuthRedirectUrl` e gerar uma nova build.
@@ -122,7 +122,7 @@ Configurar SMTP e conferir os limites de envio antes de testar com usuários ext
 3. Em Authorized redirect URIs do Google, cadastrar o callback exibido pelo Supabase: `https://SEU_PROJETO.supabase.co/auth/v1/callback` (ou o domínio customizado correspondente).
 4. Salvar Client ID e Client Secret no provedor Google do Supabase e habilitá-lo.
 
-O callback cadastrado no Google é do Supabase. O endereço `myapp://auth/callback` fica na lista de redirects do Supabase e devolve o usuário ao app. Nenhum segredo do Google precisa estar no `.env` do aplicativo.
+O callback cadastrado no Google é do Supabase. O endereço `examesia://auth/callback` fica na lista de redirects do Supabase e devolve o usuário ao app. Nenhum segredo do Google precisa estar no `.env` do aplicativo.
 
 ### Validar o Google na web
 
@@ -135,7 +135,7 @@ O callback cadastrado no Google é do Supabase. O endereço `myapp://auth/callba
 
 Diagnóstico:
 
-- `redirect_uri_mismatch`: conferir no Google o callback **do Supabase**, copiado do painel do provedor. Não cadastrar `myapp://auth/callback` no Google.
+- `redirect_uri_mismatch`: conferir no Google o callback **do Supabase**, copiado do painel do provedor. Não cadastrar `examesia://auth/callback` no Google.
 - Acesso bloqueado em modo de teste: conferir os usuários de teste e a audiência configurada no Google.
 - Retorno à URL errada: conferir Redirect URLs no Supabase e a origem/porta do app.
 - Provedor desabilitado: habilitar Google no Supabase e salvar as credenciais.
@@ -149,7 +149,7 @@ No Android/iOS, `openAuthSessionAsync` abre o navegador de autenticação. Na we
 
 O fluxo PKCE exige o verificador salvo onde o acesso começou. Solicitar e abrir o magic link no mesmo app/dispositivo; na web, usar o mesmo navegador e origem. Usar o link mais recente e evitar iniciar outro login antes de abri-lo. Links antigos, expirados, reutilizados ou abertos sem o verificador exigem um novo envio.
 
-Para validar o scheme nativo, usar uma development build com `myapp` registrado. Expo Go não é o ambiente de validação deste OAuth. A confirmação de cadastro também usa o mesmo callback PKCE.
+Para validar o scheme nativo, usar uma development build com `examesia` registrado. Expo Go não é o ambiente de validação deste OAuth. A confirmação de cadastro também usa o mesmo callback PKCE.
 
 ## Validação
 

@@ -35,7 +35,7 @@ test('magic link trims email, allows registration and uses the app callback', as
   await service.sendMagicLink(' user@example.com ');
   assert.equal(calls.otp[0].email, 'user@example.com');
   assert.equal(calls.otp[0].options.shouldCreateUser, true);
-  assert.equal(calls.otp[0].options.emailRedirectTo, 'myapp://auth/callback');
+  assert.equal(calls.otp[0].options.emailRedirectTo, 'examesia://auth/callback');
 });
 test('duplicate callback delivery exchanges the code only once; logout clears it', async () => {
   const { service, calls } = setup();
@@ -55,14 +55,14 @@ test('native OAuth cancellation does not exchange a code', async () => {
   assert.equal(calls.exchanges.length, 0);
 });
 test('native OAuth success exchanges the returned code', async () => {
-  const { service, calls } = setup({ browserResult: { type: 'success', url: 'myapp://auth/callback?code=valid' } });
+  const { service, calls } = setup({ browserResult: { type: 'success', url: 'examesia://auth/callback?code=valid' } });
   await service.signInWithSocialProvider('google');
   assert.equal(calls.exchanges[0], 'valid');
   assert.equal(calls.oauth[0].options.skipBrowserRedirect, true);
 });
 test('OAuth error or missing code never establishes a session', async () => {
   for (const query of ['?error=access_denied', '']) {
-    const { service, calls } = setup({ browserResult: { type: 'success', url: `myapp://auth/callback${query}` } });
+    const { service, calls } = setup({ browserResult: { type: 'success', url: `examesia://auth/callback${query}` } });
     await assert.rejects(service.signInWithSocialProvider('google'));
     assert.equal(calls.exchanges.length, 0);
   }
@@ -85,7 +85,7 @@ test('Expo Go rejects OAuth before starting a request or opening the browser', a
   assert.equal(calls.browser.length, 0);
 });
 test('unexpected callback destination never exchanges a code', async () => {
-  for (const url of ['other://auth/callback?code=x', 'myapp://other/callback?code=x', 'myapp://auth/other?code=x']) {
+  for (const url of ['other://auth/callback?code=x', 'examesia://other/callback?code=x', 'examesia://auth/other?code=x']) {
     const { service, calls } = setup({ browserResult: { type: 'success', url } });
     await assert.rejects(service.signInWithSocialProvider('google'), /invalid_callback_url/);
     assert.equal(calls.exchanges.length, 0);
