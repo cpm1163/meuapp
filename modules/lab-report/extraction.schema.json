@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lab-report extraction",
+  "description": "Transcrição de um laudo laboratorial. A IA transcreve; não classifica valores nem escolhe linhas de tabela. Sem dados de identificação da pessoa examinada.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "is_lab_report", "legibility", "laboratory", "patient_sex", "patient_age_years",
+    "collected_at", "generated_at", "executed_exams", "exams"],
+  "properties": {
+    "schema_version": { "const": "lab-report/1" },
+    "is_lab_report": { "type": "boolean", "description": "Se o documento é um laudo de exames laboratoriais." },
+    "legibility": { "enum": ["ok", "partial", "unreadable"] },
+    "laboratory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "registration"],
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "registration": { "type": ["string", "null"], "description": "Registro do laboratório, se impresso." }
+      }
+    },
+    "patient_sex": { "enum": ["female", "male", null], "description": "Como impresso no cabeçalho; só para escolher linhas de tabelas por sexo." },
+    "patient_age_years": { "type": ["number", "null"], "description": "Idade em anos, como impressa no cabeçalho." },
+    "collected_at": { "type": ["string", "null"], "description": "Data/hora da coleta ou recebimento, no formato AAAA-MM-DD ou AAAA-MM-DDTHH:MM." },
+    "generated_at": { "type": ["string", "null"], "description": "Data/hora de geração do laudo, mesmo formato." },
+    "executed_exams": {
+      "type": "array",
+      "description": "Exames declarados pelo próprio laudo (ex.: lista 'Local de execução'). Vazio se o laudo não tiver essa lista.",
+      "items": { "type": "string" }
+    },
+    "exams": { "type": "array", "items": { "$ref": "#/$defs/exam" } }
+  },
+  "$defs": {
+    "exam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exam_name", "pages", "material", "method", "responsible", "lab_notes", "parameters"],
+      "properties": {
+        "exam_name": { "type": "string", "description": "Nome como impresso." },
+        "pages": { "type": "array", "items": { "type": "integer" }, "description": "Páginas do PDF/foto onde o exame aparece, a partir de 1." },
+        "material": { "type": ["string", "null"] },
+        "method": { "type": ["string", "null"] },
+        "responsible": { "type": "array", "items": { "$ref": "#/$defs/responsible" } },
+        "lab_notes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Notas técnicas específicas do exame. Não inclui referências bibliográficas."
+        },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/parameter" } }
+      }
+    },
+    "responsible": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "registration", "role", "signed_at"],
+      "properties": {
+        "name": { "type": "string" },
+        "registration": { "type": ["string", "null"], "description": "Registro profissional, como impresso." },
+        "role": { "type": ["string", "null"], "description": "Ex.: assinatura eletrônica, responsável técnico." },
+        "signed_at": { "type": ["string", "null"] }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "code", "value_kind", "value_number", "value_text", "unit", "reference", "lab_flag", "history", "page"],
+      "properties": {
+        "name": { "type": "string", "description": "Como impresso." },
+        "code": {
+          "enum": ["rbc", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "wbc",
+            "neutrophils_pct", "neutrophils_abs", "lymphocytes_pct", "lymphocytes_abs",
+            "monocytes_pct", "monocytes_abs", "eosinophils_pct", "eosinophils_abs",
+            "basophils_pct", "basophils_abs", "platelets", null],
+          "description": "Somente para parâmetros do hemograma; null nos demais. Percentual e absoluto do diferencial são parâmetros separados."
+        },
+        "value_kind": { "enum": ["numeric", "qualitative"] },
+        "value_number": { "type": ["number", "null"], "description": "Número normalizado (\"10.810\" = 10810; \"4,52\" = 4.52). null se qualitativo ou ilegível." },
+        "value_text": { "type": "string", "description": "Valor exatamente como impresso." },
+        "unit": { "type": ["string", "null"] },
+        "reference": { "$ref": "#/$defs/reference" },
+        "lab_flag": {
+          "enum": ["within", "below", "above", "none"],
+          "description": "Marcação do próprio laboratório (ícone, cor, seta). 'none' se o laboratório não marcou."
+        },
+        "history": {
+          "type": "array",
+          "description": "Resultados anteriores impressos neste laudo, do mais recente ao mais antigo.",
+          "items": { "$ref": "#/$defs/history_entry" }
+        },
+        "page": { "type": ["integer", "null"] }
+      }
+    },
+    "history_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["date", "value_number", "value_text"],
+      "properties": {
+        "date": { "type": ["string", "null"], "description": "AAAA-MM-DD." },
+        "value_number": { "type": ["number", "null"] },
+        "value_text": { "type": "string" }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "low", "low_inclusive", "high", "high_inclusive", "expected", "rows"],
+      "properties": {
+        "kind": {
+          "enum": ["range", "upper_limit", "lower_limit", "table_by_demographics", "table_by_clinical_category", "qualitative", "none"]
+        },
+        "text": { "type": "string", "description": "Referência inteira como impressa, inclusive tabelas." },
+        "low": { "type": ["number", "null"] },
+        "low_inclusive": { "type": "boolean", "description": "false para 'superior a'/'maior que'." },
+        "high": { "type": ["number", "null"] },
+        "high_inclusive": { "type": "boolean", "description": "false para 'inferior a'/'menor que'." },
+        "expected": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Para referência qualitativa: valores esperados como impressos (ex.: 'Ausente'). Vazio nos demais."
+        },
+        "rows": {
+          "type": "array",
+          "description": "Linhas da tabela de referência, transcritas sem escolher nenhuma. Vazio se não for tabela.",
+          "items": { "$ref": "#/$defs/reference_row" }
+        }
+      }
+    },
+    "reference_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "sex", "age_min_years", "age_max_years", "low", "low_inclusive", "high", "high_inclusive"],
+      "properties": {
+        "label": { "type": "string", "description": "Rótulo da linha como impresso (ex.: 'Homens', 'Alto risco')." },
+        "sex": { "enum": ["female", "male", null] },
+        "age_min_years": { "type": ["number", "null"] },
+        "age_max_years": { "type": ["number", "null"] },
+        "low": { "type": ["number", "null"] },
+        "low_inclusive": { "type": "boolean" },
+        "high": { "type": ["number", "null"] },
+        "high_inclusive": { "type": "boolean" }
+      }
+    }
+  }
+}

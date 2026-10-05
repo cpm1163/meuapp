@@ -2,7 +2,9 @@
 
 ## Estado e escopo
 
-Planejamento iniciado em 02/10/2026. Nenhum código escrito. Este documento deve ser revisado e aprovado antes da implementação.
+Planejamento iniciado em 02/10/2026. Implementação iniciada em 05/10/2026: tabela de análises (local e remoto) e esquema + pontos de atenção do módulo `lab-report`. O módulo continua em `draft` no remoto.
+
+**Onde retomar (05/10/2026):** passo 6 da [sequência](#sequência-da-fase-03), a Edge Function `analyze-document` com o `SKILL.md` e o teste com o gabarito real. **Bloqueado pela chave da API da Anthropic:** o usuário cria a chave no Console (console.anthropic.com, conta separada da assinatura do Claude, cobrança por uso) e ela é gravada só nos secrets do Supabase, por um comando que o próprio usuário digita, sem a chave passar pela conversa nem pelo repositório.
 
 **Pausada em 02/10/2026:** a fase de perfis ([profiles.md](profiles.md)) passou a ser a FASE 02 e será feita antes. Esta fase, antes numerada como FASE 02, passou a ser a FASE 03. Tudo o que foi decidido aqui continua valendo.
 
@@ -10,9 +12,9 @@ Planejamento iniciado em 02/10/2026. Nenhum código escrito. Este documento deve
 | --- | --- |
 | 1 — Escopo e critérios | Escopo revisto e aprovado pelo usuário em 02/10/2026: laudo laboratorial completo, pontos de atenção para o médico, sem interpretação clínica. |
 | 2 — Amostras | PDF de laudo completo recebido e analisado em 02/10/2026 (ver [Amostra 1](#amostra-1--laudo-completo-em-pdf)). Foto pendente. |
-| 3 — Modelo de dados e RLS | Proposto neste documento, incluindo o catálogo de módulos. |
+| 3 — Modelo de dados e RLS | Migração `20261005000100_document_analyses.sql` aplicada no Supabase local e, depois de `--dry-run` que listou apenas ela, no **remoto** em 05/10/2026; `migration list` conferido. 45/45 asserções pgTAP (`supabase/tests/analyses_rls.test.sql`), 148/148 no total. |
 | 4 — Função de análise | Proposta neste documento. Modelo de IA decidido. |
-| 5 — Pontos de atenção | Propostos neste documento; tolerâncias a calibrar com as amostras. |
+| 5 — Pontos de atenção | Implementados em `modules/lab-report/findings.ts` em 05/10/2026, com esquema de extração (`extraction.schema.json`) e 15 testes sobre laudo fictício (`tests/lab-report.test.cjs`). Tolerâncias do hemograma provisórias, a calibrar. |
 | 6 — Interface | Pendente. |
 
 As fases anteriores estão em [authentication.md](authentication.md) (FASE 0), [grants.md](grants.md) (FASE 01) e [profiles.md](profiles.md) (FASE 02).
@@ -60,7 +62,7 @@ Decidido em 02/10/2026 como direção de produto:
 
 - Cada tipo de análise é um **módulo** oferecido ao profissional que usa o app, conforme a especialidade (ex.: pontos de atenção em laudo laboratorial para o clínico; consistência de hemograma para o hematologista; futuros módulos para outras especialidades).
 - Tecnicamente, cada módulo é uma **skill personalizada do Claude** (Agent Skills), criada pela API de Skills da Anthropic, com identificador (`skill_id`) e **versões**. A função de análise escolhe a skill pelo `kind` da análise.
-- **O laudo laboratorial (nível A) é o primeiro módulo.** O catálogo, a ativação por profissional e a cobrança ficam para depois que este módulo estiver validado com médicos.
+- **O laudo laboratorial (nível A) é o primeiro módulo.** O catálogo, a liberação por `user` e a solicitação de módulos já existem desde a FASE 02 ([profiles.md](profiles.md)); a contratação e o pagamento ficam fora do app.
 - A avaliação regulatória é feita **módulo a módulo**: módulos de nível A primeiro; módulos de nível B dependem da consulta regulatória.
 
 ### Abordagem híbrida (proposta)
@@ -174,6 +176,10 @@ A IA transcreve a tabela de referência inteira (`reference_text` e linhas estru
 
 ## Pontos de atenção
 
+Implementação: `modules/lab-report/` contém o esquema de extração (`extraction.schema.json`, só com as palavras-chave aceitas pela saída estruturada), o verificador do esquema (`schema-check.ts`) e as regras (`findings.ts`). Os dois arquivos `.ts` não têm dependências, para rodar iguais na Edge Function e nos testes. Cada ponto de atenção é gravado como dado (`kind`, `reason`, exame, parâmetro, página, valor, referência, marcação do laboratório, valor anterior); o texto em português é montado na tela.
+
+Complementos ao esquema decididos na implementação: `code` identifica os parâmetros do hemograma (percentual e absoluto do diferencial são parâmetros separados); a referência traz `low_inclusive`/`high_inclusive` ("inferior a 4,00" exclui o 4,00); `/mm³` e `/µL` são tratados como a mesma unidade; se o código não consegue comparar mas o laboratório marcou o valor, a marcação vira ponto de atenção (`flagged_by_lab`).
+
 O código gera os itens abaixo. Cada item indica exame, parâmetro, página e a regra que o gerou.
 
 1. **Fora da referência:** valor numérico ou qualitativo fora da referência impressa, para os tipos que o código consegue comparar com segurança. Inclui exames **sem marcação do laboratório**.
@@ -205,11 +211,13 @@ Inconsistência gera alerta de possível erro de leitura ou de impressão, com r
 - Cada item: exame, parâmetro, valor com unidade, referência, valor anterior com data (quando houver) e página do laudo.
 - Botão para abrir o laudo original.
 - Aviso fixo: "Lista gerada automaticamente a partir do laudo, sem interpretação clínica. Confira sempre o laudo original."
-- Validação no Android pelo Expo Go; iOS quando houver aparelho.
+- Validação no Android em development build ([dev-build.md](dev-build.md)), feita uma única vez, quando a captura de fotos estiver pronta; iOS quando houver aparelho.
 
-## Modelo de dados proposto
+## Modelo de dados
 
 ### `document_analyses`
+
+Implementado em `supabase/migrations/20261005000100_document_analyses.sql`.
 
 | Campo | Tipo proposto | Finalidade e restrição |
 | --- | --- | --- |
@@ -217,22 +225,35 @@ Inconsistência gera alerta de possível erro de leitura ou de impressão, com r
 | `document_id` | UUID | Referência a `documents.id`, com exclusão em cascata. |
 | `requested_by` | UUID | Conta que pediu a análise (o proprietário). |
 | `module_id` | Texto | Referência a `analysis_modules.id`. Somente `lab-report` nesta fase. |
-| `module_version` | Texto | Versão do módulo (skill) usada nesta análise. |
-| `status` | Estado controlado | `processing`, `completed`, `failed`. |
+| `module_version` | Texto | Versão do módulo (skill) usada nesta análise (`analysis_modules.active_version` no momento do pedido). |
+| `terms_version` | Texto | Versão dos termos aceita quando a análise foi pedida. |
+| `status` | Estado controlado | `processing`, `ready`, `failed`. No máximo uma análise `processing` por documento. |
 | `model` | Texto | Modelo de IA usado, para rastreabilidade. |
-| `extraction` | JSON | Saída da IA, já validada contra o esquema. |
-| `findings` | JSON | Pontos de atenção gerados em código. |
-| `error_code` | Texto, opcional | Motivo da falha (ilegível, não é laudo, erro do provedor). Sem conteúdo do documento. |
+| `extraction` | JSON (objeto) | Saída da IA, já validada contra o esquema. Só em `ready`. |
+| `findings` | JSON (lista) | Pontos de atenção gerados em código. Só em `ready`. |
+| `failure_reason` | Texto, opcional | Código da falha, obrigatório em `failed` (ex.: `unreadable`, `not_lab_report`, `provider_error`, `timeout`). Sem conteúdo do documento. |
+| `shared_at` | Data/hora, opcional | Preenchido quando o proprietário compartilha a análise; só em `ready`. |
 | `created_at`, `completed_at` | Data/hora com fuso | Gerados pelo servidor. |
 
-Uma nova análise do mesmo documento cria uma nova linha; o app mostra a mais recente. O cliente não insere nem altera linhas diretamente: tudo passa pela função de análise.
+Uma nova análise do mesmo documento cria uma nova linha; o app mostra a mais recente. O cliente não insere nem altera linhas diretamente. As escritas passam por estas funções:
+
+| Função | Quem chama | O que faz |
+| --- | --- | --- |
+| `start_document_analysis(document_id, module_id)` | Função de análise, **com o token do usuário** | Confere `can_use_module`, a propriedade e o estado do documento; recusa se já houver análise em andamento (`analysis_in_progress`); cria a linha `processing` e marca o documento como `processing`. Uma análise parada há mais de 15 minutos é encerrada como `timeout` e não bloqueia a nova. |
+| `complete_document_analysis(analysis_id, extraction, findings, model)` | Só o servidor (`service_role`) | Grava o resultado e marca o documento como `ready`. |
+| `fail_document_analysis(analysis_id, reason, model)` | Só o servidor (`service_role`) | Grava a falha e marca o documento como `failed`. |
+| `set_analysis_shared(analysis_id, shared)` | App, pelo proprietário | Compartilha ou deixa de compartilhar uma análise `ready`. |
+
+Se o proprietário começar a excluir o documento durante a análise, o documento continua em `deleting`; a conclusão não o devolve a `ready`.
+
+**Compartilhamento (decidido em 05/10/2026):** um único botão "Compartilhar esta análise" na tela de resultado. A análise compartilhada fica visível para quem já lê o documento pela FASE 01; não há lista separada de pessoas. Deixar de compartilhar, ou revogar o compartilhamento do documento, remove o acesso.
 
 ### Catálogo, liberação e aceite de termos
 
 O catálogo `analysis_modules`, as liberações `module_grants` e o aceite de termos por módulo são criados na FASE 02 ([profiles.md](profiles.md)). Esta fase apenas os usa:
 
 - preenche `skill_id` e `active_version` do módulo `lab-report` e o muda para `active` quando estiver validado;
-- a função de análise recusa o pedido se o módulo não estiver `active`, se o `user` não tiver liberação ativa ou se não houver aceite da versão vigente dos termos.
+- a função de análise recusa o pedido se o módulo não estiver em `testing` ou `active` (decidido em 05/10/2026: `testing` libera a análise para quem tem liberação, para testar antes de abrir a todos), se o `user` não tiver liberação ativa ou se não houver aceite da versão vigente dos termos.
 
 O aceite de termos do módulo substitui a tabela `ai_consents` prevista na versão anterior deste plano.
 
@@ -244,20 +265,19 @@ O aceite de termos do módulo substitui a tabela `ai_consents` prevista na vers�
 | Ver resultado da análise | Sim | Sim | **Só se o proprietário compartilhar a análise** (decidido em 03/10/2026, ver [profiles.md](profiles.md)) | Não | Não |
 | Excluir análise | Via exclusão do documento | Via exclusão do documento | Não | Não | Não |
 
-Somente o proprietário com o módulo liberado pede análise, porque isso envolve o contrato do módulo e o envio do documento a terceiro. Compartilhar o documento **não** compartilha as análises: a análise é de quem a pediu, e compartilhá-la é uma decisão separada do proprietário (o mecanismo é definido nesta fase). Revogar o compartilhamento bloqueia também o acesso do leitor às análises que tiverem sido compartilhadas. Excluir o documento remove suas análises.
+Somente o proprietário com o módulo liberado pede análise, porque isso envolve o contrato do módulo e o envio do documento a terceiro. Compartilhar o documento **não** compartilha as análises: a análise é de quem a pediu, e compartilhá-la é uma decisão separada do proprietário (botão único por análise, ver [`document_analyses`](#document_analyses)). Revogar o compartilhamento bloqueia também o acesso do leitor às análises que tiverem sido compartilhadas. Excluir o documento remove suas análises.
 
 ## Função de análise (servidor)
 
 Proposta: uma Supabase Edge Function `analyze-document`.
 
-1. Valida o token do usuário e o consentimento vigente.
-2. Confere que o usuário é o proprietário e que o documento está em `uploaded`, `ready` ou `failed`.
-3. Impede duas análises simultâneas do mesmo documento.
+1. Valida o token do usuário.
+2. Chama `start_document_analysis` **com o token do usuário**. No banco, essa função confere módulo, liberação e termos (`module_private.can_use_module`), a propriedade e o estado do documento (`uploaded`, `ready` ou `failed`), e impede duas análises simultâneas.
+3. Se o passo 2 recusar, devolve o motivo ao app (ex.: `module_not_available`, `analysis_in_progress`) e para, sem baixar o arquivo.
 4. Baixa o arquivo do bucket privado com credencial de servidor. Essa credencial ignora RLS, então a autorização dos passos 1 e 2 é obrigatória antes do download.
 5. Envia o laudo inteiro à IA com instrução de extração e esquema JSON fixo. Laudos longos geram saída grande: usar streaming e limite de saída alto.
 6. Valida a resposta contra o esquema. Resposta inválida, truncada ou recusa do modelo resulta em `failed`, sem gravar extração parcial.
-7. Gera os pontos de atenção e grava `document_analyses`.
-8. Atualiza o estado do documento.
+7. Gera os pontos de atenção e chama `complete_document_analysis`; em qualquer falha, chama `fail_document_analysis`. As duas atualizam também o estado do documento.
 
 A chave do provedor de IA fica nos secrets do Supabase, nunca no app nem no repositório. Os logs registram identificadores, tempos, tokens consumidos e códigos de erro, nunca o conteúdo do laudo.
 
@@ -278,7 +298,7 @@ A chave do provedor de IA fica nos secrets do Supabase, nunca no app nem no repo
 
 Laudos laboratoriais são **dado pessoal sensível** (dado de saúde, art. 5º, II, e art. 11 da LGPD).
 
-- **Aceite dos termos do módulo** (FASE 02): o termo informa que o **laudo completo** é enviado a um provedor de IA externo para extração dos dados, que o resultado pode ser visto pelas pessoas com quem o documento for compartilhado, que o resultado não é diagnóstico e que o `user` responde pela base legal para tratar dados de saúde de terceiros que carregar.
+- **Aceite dos termos do módulo** (FASE 02): o termo informa que o **laudo completo** é enviado a um provedor de IA externo para extração dos dados, que o resultado fica visível apenas para o `user`, que decide se o compartilha, que o resultado não é diagnóstico e que o `user` responde pela base legal para tratar dados de saúde de terceiros que carregar.
 - **Provedor:** pendente verificar e registrar aqui a política de retenção de dados da API escolhida e se os dados enviados são usados para treinamento.
 - **Minimização:** a extração não inclui nome, documento e demais identificadores do paciente; apenas sexo e idade, necessários para tabelas de referência.
 - **Política de privacidade do app:** precisa mencionar o envio ao provedor de IA antes de qualquer usuário externo usar a função.
@@ -294,8 +314,9 @@ Laudos laboratoriais são **dado pessoal sensível** (dado de saúde, art. 5º, 
 O usuário forneceu o próprio laudo, sem anonimização. Por conter dado de saúde identificado:
 
 - Os arquivos originais **não são commitados**. Ficam em `tests/fixtures/private/`, já incluída no `.gitignore`.
-- Os testes automatizados usarão JSON de extração (gabarito) com os campos de identificação removidos ou substituídos. Esses arquivos podem ser commitados.
-- Casos adicionais podem ser criados alterando o JSON (ex.: um VCM inconsistente, um exame faltando, uma marcação divergente), sem novos laudos reais.
+- O **gabarito real** (JSON de extração da amostra 1, conferido campo a campo) também fica em `tests/fixtures/private/` e **não é commitado**, mesmo sem os campos de identificação: os valores continuam sendo resultados reais do usuário, que é o autor dos commits (decidido em 05/10/2026). Ele serve para avaliar a extração da IA e o teste comparativo de modelos.
+- Os testes automatizados do repositório usam **laudos fictícios** em JSON, montados à mão com as mesmas situações do real (referência em tabela, histórico, formato brasileiro, hemograma).
+- Casos adicionais podem ser criados alterando o JSON fictício (ex.: um VCM inconsistente, um exame faltando, uma marcação divergente), sem novos laudos reais.
 
 ## Amostra 1 — laudo completo em PDF
 
@@ -345,9 +366,9 @@ Recebida em 02/10/2026: PDF de laboratório de grande rede, 1,4 MB, **26 página
 
 1. Revisar e aprovar este documento; decidir as pendências.
 2. Receber a foto; montar o gabarito JSON da amostra 1 sem dados pessoais.
-3. Migração: `document_analyses`, privilégios, RLS e testes pgTAP. Catálogo, liberações e aceite de termos já existem desde a FASE 02.
-4. Pasta `modules/lab-report/` com a primeira versão da skill (instruções, esquema e exemplos) e script de publicação com versão fixa.
-5. Geração dos pontos de atenção em código, com testes automatizados a partir do gabarito.
+3. ~~Migração: `document_analyses`, privilégios, RLS e testes pgTAP.~~ Aplicado no local e no remoto em 05/10/2026.
+4. Pasta `modules/lab-report/` com a primeira versão da skill (instruções, esquema e exemplos) e script de publicação com versão fixa. **Esquema feito em 05/10/2026**; `SKILL.md` e publicação ficam para junto da função de análise (passo 6), quando der para testar as instruções com a IA.
+5. ~~Geração dos pontos de atenção em código, com testes automatizados.~~ Feito em 05/10/2026, com laudo fictício (`tests/fixtures/lab-report/fictitious-report.json`); o gabarito real fica para avaliar a extração da IA.
 6. Função de análise com o Claude Opus 5.5; testar com as amostras e medir o custo real por laudo.
 7. Teste comparativo com skill × sem skill (ver [Visão de produto](#visão-de-produto-módulos-de-análise-como-skills)); decidir o formato padrão dos módulos.
 8. Interface: consentimento, botão, progresso e tela de resultado para o médico.
@@ -364,5 +385,7 @@ Recebida em 02/10/2026: PDF de laboratório de grande rede, 1,4 MB, **26 página
 - [ ] Abordagem híbrida (conhecimento na skill, regras no servidor): confirmar após o teste comparativo com skill × sem skill.
 - [ ] Consulta a especialista em regulação sanitária antes de usuários externos.
 - [ ] Política de retenção do provedor de IA, a verificar e registrar.
-- [ ] Texto do termo de consentimento.
-- [ ] Tolerâncias das verificações de consistência do hemograma: percentual e piso fixo.
+- [x] Texto do termo: o provisório da FASE 02 continua valendo por enquanto (03/10/2026); revisão jurídica antes de usuários externos.
+- [ ] Tolerâncias das verificações de consistência do hemograma: percentual e piso fixo. **Provisórias desde 05/10/2026** (`HEMOGRAM_TOLERANCES`): índices 1%; soma do diferencial ±2 pontos; absolutos 2% ou 0,1% dos leucócitos, o que for maior. Calibrar com mais amostras.
+- [x] Compartilhamento da análise: botão "Compartilhar esta análise" na tela de resultado; a análise fica visível para quem já tem acesso ao documento pela FASE 01, e desfazer remove esse acesso. Sem lista separada de pessoas (05/10/2026).
+- [x] Módulo em `testing`: libera a análise para quem tem liberação do módulo, como em `active`, para testar com a conta B antes de abrir a todos (05/10/2026).
