@@ -32,6 +32,11 @@ export function createDocumentService(accessToken: string) {
       if (error) throw error;
       return data as DocumentRecord[];
     },
+    async get(id: string) {
+      const { data, error } = await client.from('documents').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return data as DocumentRecord | null;
+    },
     async upload(name: string, bytes: ArrayBuffer) {
       const contentType = detectDocumentType(bytes);
       const { data, error } = await client.rpc('create_document', { document_name: name, content_type: contentType });

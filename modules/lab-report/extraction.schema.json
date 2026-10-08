@@ -1,36 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "lab-report extraction",
-  "description": "Transcrição de um laudo laboratorial. A IA transcreve; não classifica valores nem escolhe linhas de tabela. Sem dados de identificação da pessoa examinada.",
+  "description": "Transcrição dos exames laboratoriais de um documento, que pode trazer também exames descritivos (laudo misto). A IA transcreve; não classifica valores nem escolhe linhas de tabela. Sem dados de identificação da pessoa examinada. Textos ausentes são string vazia; números ausentes são null.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "is_lab_report", "legibility", "laboratory", "patient_sex", "patient_age_years",
-    "collected_at", "generated_at", "executed_exams", "exams"],
+  "required": ["schema_version", "has_lab_exams", "legibility", "laboratory", "patient_sex", "patient_age_years",
+    "collected_at", "generated_at", "executed_exams", "exams", "other_exams"],
   "properties": {
-    "schema_version": { "const": "lab-report/1" },
-    "is_lab_report": { "type": "boolean", "description": "Se o documento é um laudo de exames laboratoriais." },
+    "schema_version": { "const": "lab-report/3" },
+    "has_lab_exams": { "type": "boolean", "description": "Se o documento tem ao menos um exame laboratorial (parâmetro, valor e referência)." },
     "legibility": { "enum": ["ok", "partial", "unreadable"] },
     "laboratory": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "registration"],
       "properties": {
-        "name": { "type": ["string", "null"] },
-        "registration": { "type": ["string", "null"], "description": "Registro do laboratório, se impresso." }
+        "name": { "type": "string" },
+        "registration": { "type": "string", "description": "Registro do laboratório, se impresso." }
       }
     },
     "patient_sex": { "enum": ["female", "male", null], "description": "Como impresso no cabeçalho; só para escolher linhas de tabelas por sexo." },
     "patient_age_years": { "type": ["number", "null"], "description": "Idade em anos, como impressa no cabeçalho." },
-    "collected_at": { "type": ["string", "null"], "description": "Data/hora da coleta ou recebimento, no formato AAAA-MM-DD ou AAAA-MM-DDTHH:MM." },
-    "generated_at": { "type": ["string", "null"], "description": "Data/hora de geração do laudo, mesmo formato." },
+    "collected_at": { "type": "string", "description": "Data/hora da coleta ou recebimento, no formato AAAA-MM-DD ou AAAA-MM-DDTHH:MM." },
+    "generated_at": { "type": "string", "description": "Data/hora de geração do laudo, mesmo formato." },
     "executed_exams": {
       "type": "array",
       "description": "Exames declarados pelo próprio laudo (ex.: lista 'Local de execução'). Vazio se o laudo não tiver essa lista.",
       "items": { "type": "string" }
     },
-    "exams": { "type": "array", "items": { "$ref": "#/$defs/exam" } }
+    "exams": { "type": "array", "items": { "$ref": "#/$defs/exam" }, "description": "Somente exames laboratoriais." },
+    "other_exams": {
+      "type": "array",
+      "description": "Exames do documento que não são laboratoriais, listados sem transcrever o conteúdo. Vazio se não houver.",
+      "items": { "$ref": "#/$defs/other_exam" }
+    }
   },
   "$defs": {
+    "other_exam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exam_name", "kind", "pages"],
+      "properties": {
+        "exam_name": { "type": "string", "description": "Nome como impresso." },
+        "kind": {
+          "enum": ["descriptive", "other"],
+          "description": "descriptive: texto escrito pelo profissional que executou o exame (ultrassom, raio-X, tomografia, ressonância, endoscopia, anatomopatológico). other: o restante (ex.: página só com imagens)."
+        },
+        "pages": { "type": "array", "items": { "type": "integer" }, "description": "Páginas do PDF/foto onde o exame aparece, a partir de 1." }
+      }
+    },
     "exam": {
       "type": "object",
       "additionalProperties": false,
@@ -38,8 +56,8 @@
       "properties": {
         "exam_name": { "type": "string", "description": "Nome como impresso." },
         "pages": { "type": "array", "items": { "type": "integer" }, "description": "Páginas do PDF/foto onde o exame aparece, a partir de 1." },
-        "material": { "type": ["string", "null"] },
-        "method": { "type": ["string", "null"] },
+        "material": { "type": "string" },
+        "method": { "type": "string" },
         "responsible": { "type": "array", "items": { "$ref": "#/$defs/responsible" } },
         "lab_notes": {
           "type": "array",
@@ -55,9 +73,9 @@
       "required": ["name", "registration", "role", "signed_at"],
       "properties": {
         "name": { "type": "string" },
-        "registration": { "type": ["string", "null"], "description": "Registro profissional, como impresso." },
-        "role": { "type": ["string", "null"], "description": "Ex.: assinatura eletrônica, responsável técnico." },
-        "signed_at": { "type": ["string", "null"] }
+        "registration": { "type": "string", "description": "Registro profissional, como impresso." },
+        "role": { "type": "string", "description": "Ex.: assinatura eletrônica, responsável técnico." },
+        "signed_at": { "type": "string" }
       }
     },
     "parameter": {
@@ -76,7 +94,7 @@
         "value_kind": { "enum": ["numeric", "qualitative"] },
         "value_number": { "type": ["number", "null"], "description": "Número normalizado (\"10.810\" = 10810; \"4,52\" = 4.52). null se qualitativo ou ilegível." },
         "value_text": { "type": "string", "description": "Valor exatamente como impresso." },
-        "unit": { "type": ["string", "null"] },
+        "unit": { "type": "string" },
         "reference": { "$ref": "#/$defs/reference" },
         "lab_flag": {
           "enum": ["within", "below", "above", "none"],
@@ -95,7 +113,7 @@
       "additionalProperties": false,
       "required": ["date", "value_number", "value_text"],
       "properties": {
-        "date": { "type": ["string", "null"], "description": "AAAA-MM-DD." },
+        "date": { "type": "string", "description": "AAAA-MM-DD." },
         "value_number": { "type": ["number", "null"] },
         "value_text": { "type": "string" }
       }

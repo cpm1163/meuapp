@@ -38,7 +38,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --test tests/auth.test.cjs tests/documents.test.cjs tests/lab-report.test.cjs",
+    "test": "node --test tests/auth.test.cjs tests/documents.test.cjs tests/lab-report.test.cjs tests/analyses.test.cjs",
     "test:db": "supabase test db"
   },
   "private": true
