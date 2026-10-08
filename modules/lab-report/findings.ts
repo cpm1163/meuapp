@@ -17,27 +17,29 @@ export type Reference = {
   low: number | null; low_inclusive: boolean; high: number | null; high_inclusive: boolean;
   expected: string[]; rows: ReferenceRow[];
 };
-export type HistoryEntry = {date: string | null; value_number: number | null; value_text: string};
+export type HistoryEntry = {date: string; value_number: number | null; value_text: string};
 export type Parameter = {
   name: string; code: string | null; value_kind: 'numeric' | 'qualitative';
-  value_number: number | null; value_text: string; unit: string | null;
+  value_number: number | null; value_text: string; unit: string;
   reference: Reference; lab_flag: LabFlag; history: HistoryEntry[]; page: number | null;
 };
 export type Exam = {
-  exam_name: string; pages: number[]; material: string | null; method: string | null;
-  responsible: {name: string; registration: string | null; role: string | null; signed_at: string | null}[];
+  exam_name: string; pages: number[]; material: string; method: string;
+  responsible: {name: string; registration: string; role: string; signed_at: string}[];
   lab_notes: string[]; parameters: Parameter[];
 };
+/** An exam in the same document that is not a lab exam (mixed report), listed but not transcribed. */
+export type OtherExam = {exam_name: string; kind: 'descriptive' | 'other'; pages: number[]};
 export type Extraction = {
-  schema_version: string; is_lab_report: boolean; legibility: 'ok' | 'partial' | 'unreadable';
-  laboratory: {name: string | null; registration: string | null};
+  schema_version: string; has_lab_exams: boolean; legibility: 'ok' | 'partial' | 'unreadable';
+  laboratory: {name: string; registration: string};
   patient_sex: Sex; patient_age_years: number | null;
-  collected_at: string | null; generated_at: string | null;
-  executed_exams: string[]; exams: Exam[];
+  collected_at: string; generated_at: string;
+  executed_exams: string[]; exams: Exam[]; other_exams: OtherExam[];
 };
 
 export type FindingKind = 'out_of_reference' | 'table_check' | 'history_change' | 'lab_flag_divergence'
-  | 'unverifiable' | 'incomplete_reading' | 'hemogram_inconsistency' | 'lab_note';
+  | 'unverifiable' | 'incomplete_reading' | 'not_analyzed' | 'hemogram_inconsistency' | 'lab_note';
 export type Finding = {
   kind: FindingKind;
   reason: string;
@@ -54,7 +56,7 @@ export type Finding = {
 
 /** Display order on the result screen. */
 export const FINDING_ORDER: FindingKind[] = ['out_of_reference', 'table_check', 'history_change',
-  'lab_flag_divergence', 'unverifiable', 'incomplete_reading', 'hemogram_inconsistency', 'lab_note'];
+  'lab_flag_divergence', 'unverifiable', 'incomplete_reading', 'not_analyzed', 'hemogram_inconsistency', 'lab_note'];
 
 /**
  * Provisional tolerances for the hemogram consistency checks, to be calibrated with more samples.
@@ -71,8 +73,9 @@ export const HEMOGRAM_TOLERANCES = {
 
 /** Reasons that end the analysis without findings. */
 export function failureReason(extraction: Extraction): string | null {
-  if (!extraction.is_lab_report) return 'not_lab_report';
   if (extraction.legibility === 'unreadable') return 'unreadable';
+  // A document with only descriptive exams is kept; it just has nothing for this module.
+  if (!extraction.has_lab_exams) return 'no_lab_exams';
   if (extraction.exams.length === 0) return 'no_exams_found';
   return null;
 }
@@ -148,9 +151,9 @@ function parameterFindings(exam: Exam, parameter: Parameter, extraction: Extract
   const previousEntry = latest(parameter.history);
   const base = {
     exam_name: exam.exam_name, parameter_name: parameter.name, page: parameter.page ?? exam.pages[0] ?? null,
-    value_text: parameter.value_text, unit: parameter.unit, reference_text: parameter.reference.text,
+    value_text: parameter.value_text, unit: parameter.unit || null, reference_text: parameter.reference.text,
     lab_flag: parameter.lab_flag,
-    previous: previousEntry ? {date: previousEntry.date, value_text: previousEntry.value_text} : null,
+    previous: previousEntry ? {date: previousEntry.date || null, value_text: previousEntry.value_text} : null,
   };
   const finding = (kind: FindingKind, reason: string, details: Record<string, unknown> = {}): Finding =>
     ({kind, reason, ...base, details});
@@ -221,7 +224,7 @@ function hemogramFindings(extraction: Extraction): Finding[] {
     findings.push({
       kind, reason, exam_name: entry.exam.exam_name, parameter_name: entry.parameter.name,
       page: entry.parameter.page ?? entry.exam.pages[0] ?? null, value_text: entry.parameter.value_text,
-      unit: entry.parameter.unit, reference_text: null, lab_flag: null, previous: null, details,
+      unit: entry.parameter.unit || null, reference_text: null, lab_flag: null, previous: null, details,
     });
   };
 
@@ -282,13 +285,18 @@ function completenessFindings(extraction: Extraction): Finding[] {
   if (extraction.legibility === 'partial') {
     findings.push({kind: 'incomplete_reading', reason: 'partial_legibility', exam_name: null, ...empty, details: {}});
   }
-  const extracted = extraction.exams.map(exam => normalizeText(exam.exam_name));
+  // Declared exams listed as non-lab (mixed report) were seen, not missed.
+  const seen = [...extraction.exams, ...extraction.other_exams].map(exam => normalizeText(exam.exam_name));
   for (const declared of extraction.executed_exams) {
     const name = normalizeText(declared);
     if (!name) continue;
-    if (!extracted.some(found => found === name || found.includes(name) || name.includes(found))) {
+    if (!seen.some(found => found === name || found.includes(name) || name.includes(found))) {
       findings.push({kind: 'incomplete_reading', reason: 'exam_not_extracted', exam_name: declared, ...empty, details: {}});
     }
+  }
+  for (const other of extraction.other_exams) {
+    findings.push({kind: 'not_analyzed', reason: `${other.kind}_exam`, exam_name: other.exam_name, ...empty,
+      page: other.pages[0] ?? null, details: {pages: other.pages}});
   }
   return findings;
 }

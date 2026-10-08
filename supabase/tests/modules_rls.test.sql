@@ -1,6 +1,8 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(61);
+-- These tests start from a draft module, whatever status the migrations left it in.
+update public.analysis_modules set status='draft' where id='lab-report';
 insert into auth.users(id,email) values
  ('30000000-0000-0000-0000-000000000001','admin@module.test'),
  ('30000000-0000-0000-0000-000000000002','buyer@module.test'),

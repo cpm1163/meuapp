@@ -1,10 +1,10 @@
 {
- "schema_version": "lab-report/1",
- "is_lab_report": true,
+ "schema_version": "lab-report/3",
+ "has_lab_exams": true,
  "legibility": "ok",
  "laboratory": {
   "name": "Laboratório Fictício de Testes",
-  "registration": null
+  "registration": ""
  },
  "patient_sex": "male",
  "patient_age_years": 45,
@@ -752,7 +752,7 @@
      "value_kind": "qualitative",
      "value_number": null,
      "value_text": "Ausente",
-     "unit": null,
+     "unit": "",
      "reference": {
       "kind": "qualitative",
       "text": "Ausente",
@@ -775,7 +775,7 @@
      "value_kind": "qualitative",
      "value_number": null,
      "value_text": "Positivo",
-     "unit": null,
+     "unit": "",
      "reference": {
       "kind": "qualitative",
       "text": "Negativo",
@@ -916,5 +916,6 @@
     }
    ]
   }
- ]
+ ],
+ "other_exams": []
 }

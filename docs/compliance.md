@@ -4,7 +4,7 @@
 
 Planejamento iniciado em 02/10/2026. Implementação iniciada em 05/10/2026: tabela de análises (local e remoto) e esquema + pontos de atenção do módulo `lab-report`. O módulo continua em `draft` no remoto.
 
-**Onde retomar (05/10/2026):** passo 6 da [sequência](#sequência-da-fase-03), a Edge Function `analyze-document` com o `SKILL.md` e o teste com o gabarito real. **Bloqueado pela chave da API da Anthropic:** o usuário cria a chave no Console (console.anthropic.com, conta separada da assinatura do Claude, cobrança por uso) e ela é gravada só nos secrets do Supabase, por um comando que o próprio usuário digita, sem a chave passar pela conversa nem pelo repositório.
+**Onde retomar (08/10/2026):** passo 6 da [sequência](#sequência-da-fase-03), a Edge Function `analyze-document` com o `SKILL.md` e o teste com o gabarito real, começando pelas [travas de custo](#travas-de-custo). **A chave da API está resolvida** (ver [Conta e chave da API](#conta-e-chave-da-api)).
 
 **Pausada em 02/10/2026:** a fase de perfis ([profiles.md](profiles.md)) passou a ser a FASE 02 e será feita antes. Esta fase, antes numerada como FASE 02, passou a ser a FASE 03. Tudo o que foi decidido aqui continua valendo.
 
@@ -14,8 +14,8 @@ Planejamento iniciado em 02/10/2026. Implementação iniciada em 05/10/2026: tab
 | 2 — Amostras | PDF de laudo completo recebido e analisado em 02/10/2026 (ver [Amostra 1](#amostra-1--laudo-completo-em-pdf)). Foto pendente. |
 | 3 — Modelo de dados e RLS | Migração `20261005000100_document_analyses.sql` aplicada no Supabase local e, depois de `--dry-run` que listou apenas ela, no **remoto** em 05/10/2026; `migration list` conferido. 45/45 asserções pgTAP (`supabase/tests/analyses_rls.test.sql`), 148/148 no total. |
 | 4 — Função de análise | Proposta neste documento. Modelo de IA decidido. |
-| 5 — Pontos de atenção | Implementados em `modules/lab-report/findings.ts` em 05/10/2026, com esquema de extração (`extraction.schema.json`) e 15 testes sobre laudo fictício (`tests/lab-report.test.cjs`). Tolerâncias do hemograma provisórias, a calibrar. |
-| 6 — Interface | Pendente. |
+| 5 — Pontos de atenção | Implementados em `modules/lab-report/findings.ts` em 05/10/2026, com esquema de extração (`extraction.schema.json`) e testes sobre laudo fictício (`tests/lab-report.test.cjs`). Tolerâncias do hemograma provisórias, a calibrar. Esquema `lab-report/2` (laudo misto) em 08/10/2026, com 19 testes. |
+| 6 — Interface | Primeira versão em 08/10/2026: botão "Análise" no documento, tela `src/app/analysis.tsx` com confirmação de envio, limite diário restante, espera pelo lote (verificação a cada minuto) e resultado agrupado por tipo de ponto de atenção, com o aviso fixo e o botão para abrir o laudo original. Textos em `src/features/analyses/findings-text.ts`, com 4 testes. Módulo `lab-report` em `testing` no remoto desde 08/10/2026 (migração `20261008000300`). Falta validar no Android com o laudo real. |
 
 As fases anteriores estão em [authentication.md](authentication.md) (FASE 0), [grants.md](grants.md) (FASE 01) e [profiles.md](profiles.md) (FASE 02).
 
@@ -53,7 +53,7 @@ O nível B aproxima o app de software como dispositivo médico (ANVISA, RDC 657/
 
 - Interpretação clínica, diagnóstico, hipóteses ou sugestão de conduta (nível B).
 - Comparação entre laudos diferentes enviados ao app. Nesta fase, o histórico usado é somente o impresso no próprio laudo.
-- Laudos de imagem (raio-X, ultrassom, tomografia) e outros documentos que não sejam laudo laboratorial.
+- Laudos descritivos (ultrassom, raio-X, tomografia, anatomopatológico etc.). Ficam para a FASE 05 ([descriptive-report.md](descriptive-report.md)); num laudo misto, esta fase só os lista (ver [Ajuste por laudo misto](#ajuste-por-laudo-misto)).
 - Conversa livre com a IA sobre o laudo.
 
 ## Visão de produto: módulos de análise como skills
@@ -122,7 +122,8 @@ A IA recebe o laudo inteiro (PDF ou imagem) e devolve:
 
 | Campo | Observação |
 | --- | --- |
-| `is_lab_report` | Se o documento é um laudo laboratorial. Se `false`, a análise termina como "documento não reconhecido". |
+| `has_lab_exams` | Se o documento tem ao menos um exame laboratorial. Se `false`, a análise termina com `no_lab_exams` ("nenhum exame laboratorial encontrado"), e o documento continua guardado. Até `lab-report/1` era `is_lab_report`. |
+| `other_exams` | Exames não laboratoriais do mesmo documento (laudo misto): nome, tipo (`descriptive` ou `other`) e páginas, sem transcrição. Ver [Ajuste por laudo misto](#ajuste-por-laudo-misto). |
 | `legibility` | `ok`, `partial` ou `unreadable`. Foto ilegível encerra a análise pedindo nova foto. |
 | `laboratory` | Nome do laboratório e registro, se impresso. |
 | `patient_sex`, `patient_age` | Como impressos no cabeçalho; usados apenas para escolher a linha de tabelas de referência por sexo e idade. |
@@ -131,6 +132,16 @@ A IA recebe o laudo inteiro (PDF ou imagem) e devolve:
 | `executed_exams` | Lista de exames declarada pelo próprio laudo (ex.: "Local de execução do(s) exame(s)"), se houver. |
 
 Nome, documento e demais identificadores da pessoa examinada **não são extraídos**: não são necessários para os pontos de atenção.
+
+### Ajuste por laudo misto
+
+Decidido em 08/10/2026: é comum um mesmo PDF trazer exames laboratoriais e descritivos (ex.: hemograma e ultrassom no mesmo arquivo baixado do laboratório). A classificação passa a ser **por exame**. Implementado em 08/10/2026 no esquema `lab-report/2`:
+
+- `is_lab_report` foi substituído por `has_lab_exams`: "o documento tem ao menos um exame laboratorial". Se `false`, a análise termina com `no_lab_exams`, e o documento continua guardado. Um documento ilegível termina com `unreadable`, que é verificado antes.
+- Novo campo `other_exams[]`: `{ exam_name, kind, pages }`, com `kind` igual a `descriptive` ou `other`. Esses exames são listados, mas não transcritos.
+- Cada exame de `other_exams` gera o ponto de atenção `not_analyzed` (`descriptive_exam` ou `other_exam`), com a página. A interface mostra "análise ainda não disponível para este tipo".
+- Um exame declarado em `executed_exams` e listado em `other_exams` não gera alerta de leitura incompleta. Se não estiver em nenhuma das duas listas, o alerta continua.
+- Testes com laudo misto fictício em `tests/lab-report.test.cjs`.
 
 ### Exames e parâmetros
 
@@ -189,7 +200,8 @@ O código gera os itens abaixo. Cada item indica exame, parâmetro, página e a 
 5. **Divergência com o laboratório:** quando a marcação do laboratório (`lab_flag`) difere da comparação feita em código. Indica possível erro de leitura e pede conferência no laudo.
 6. **Não verificável:** parâmetro ilegível, unidade não reconhecida ou referência que o código não sabe tratar.
 7. **Completude da leitura:** compara os exames extraídos com `executed_exams`. Exame declarado no laudo e não extraído gera alerta de leitura incompleta.
-8. **Consistência do hemograma** (quando houver hemograma): ver abaixo.
+8. **Não analisado:** exame não laboratorial do mesmo documento (laudo misto), listado em `other_exams`. Ver [Ajuste por laudo misto](#ajuste-por-laudo-misto).
+9. **Consistência do hemograma** (quando houver hemograma): ver abaixo.
 
 Ordem na tela: fora da referência, conferir tabela, mudanças, divergências e não verificáveis, notas. Itens sem nenhum ponto de atenção não aparecem na lista principal, mas o médico pode expandir a lista completa de exames lidos.
 
@@ -269,17 +281,98 @@ Somente o proprietário com o módulo liberado pede análise, porque isso envolv
 
 ## Função de análise (servidor)
 
-Proposta: uma Supabase Edge Function `analyze-document`.
+**Implementada em 08/10/2026, em lote** (Message Batches API da Anthropic). Uma Edge Function para em **150 s** no plano gratuito do Supabase, e a resposta de um laudo longo leva minutos. Por isso a análise foi dividida em duas funções (decidido pelo usuário em 08/10/2026). O lote também custa **50% menos**. Em troca, o resultado não sai na hora: a maioria dos lotes termina em até 1 hora, e o máximo é 24 horas.
 
-1. Valida o token do usuário.
-2. Chama `start_document_analysis` **com o token do usuário**. No banco, essa função confere módulo, liberação e termos (`module_private.can_use_module`), a propriedade e o estado do documento (`uploaded`, `ready` ou `failed`), e impede duas análises simultâneas.
-3. Se o passo 2 recusar, devolve o motivo ao app (ex.: `module_not_available`, `analysis_in_progress`) e para, sem baixar o arquivo.
-4. Baixa o arquivo do bucket privado com credencial de servidor. Essa credencial ignora RLS, então a autorização dos passos 1 e 2 é obrigatória antes do download.
-5. Envia o laudo inteiro à IA com instrução de extração e esquema JSON fixo. Laudos longos geram saída grande: usar streaming e limite de saída alto.
-6. Valida a resposta contra o esquema. Resposta inválida, truncada ou recusa do modelo resulta em `failed`, sem gravar extração parcial.
-7. Gera os pontos de atenção e chama `complete_document_analysis`; em qualquer falha, chama `fail_document_analysis`. As duas atualizam também o estado do documento.
+**`analyze-document`** (`supabase/functions/analyze-document/`), chamada pelo app com o identificador do documento:
+
+1. Valida a sessão do usuário no servidor de autenticação.
+2. Chama `start_document_analysis` **com o token do usuário**. No banco, essa função confere módulo, liberação, termos, propriedade, estado do documento e o [limite diário](#travas-de-custo), e impede duas análises simultâneas.
+3. Se o passo 2 recusar, devolve o motivo ao app (ex.: `module_not_available`, `analysis_in_progress`, `daily_limit_reached` com a data da próxima vaga) e para, sem baixar o arquivo.
+4. Confere que a versão das instruções gravada no catálogo (`analysis_modules.active_version`) é a mesma do código (`INSTRUCTIONS_VERSION`). Se não for, a análise falha com `module_version_mismatch`, sem chamar a IA.
+5. Baixa o arquivo do bucket privado com credencial de servidor. Essa credencial ignora RLS, então a autorização dos passos 1 e 2 é obrigatória antes do download.
+6. Cria um lote com um único pedido: instruções (`modules/lab-report/instructions.ts`), arquivo, esquema JSON fixo (saída estruturada), `max_tokens` fixo e esforço `medium`. A criação do lote **nunca é repetida automaticamente**, para não cobrar a mesma análise duas vezes.
+7. Grava o identificador do lote (`set_analysis_batch`) e responde `202` na hora. Se não conseguir gravar, cancela o lote e marca a análise como falha.
+
+**`collect-analyses`** (`supabase/functions/collect-analyses/`), chamada pelo app enquanto houver análise em processamento:
+
+1. Busca, com o token do usuário, as análises dele em `processing` que já têm lote, até 5 por chamada.
+2. Para cada lote terminado, baixa o resultado e o interpreta em código (`modules/lab-report/request.ts`). Recusa do modelo, resposta cortada, JSON inválido ou fora do esquema terminam em `failed`, sem gravar extração parcial.
+3. Gera os pontos de atenção e chama `complete_document_analysis` (ou `fail_document_analysis`). As duas atualizam também o estado do documento.
+4. **Apaga o lote na Anthropic**, para a extração não ficar guardada no provedor. Os resultados de um lote ficariam disponíveis por 29 dias.
+
+Uma análise sem lote é considerada abandonada depois de 15 minutos; com lote, depois de 25 horas (`module_private.batch_timeout()`).
+
+O modelo reserva automático para recusas (`fallbacks`) não funciona em lote: uma recusa vira falha `model_refusal`.
 
 A chave do provedor de IA fica nos secrets do Supabase, nunca no app nem no repositório. Os logs registram identificadores, tempos, tokens consumidos e códigos de erro, nunca o conteúdo do laudo.
+
+**Testado em 08/10/2026:**
+- Migração `20261008000200_analysis_batches.sql` com 11 testes pgTAP (177 no total), aplicada no local e, depois de `--dry-run` que listou apenas ela, no **remoto** (`migration list` conferido).
+- Regras de pedido e resposta com 3 testes novos em Node (22 no `tests/lab-report.test.cjs`).
+- As duas funções rodaram no Supabase local, sem chave da Anthropic: sessão inválida recusada, pedido inválido recusado, autorização no banco, conferência de versão, download do arquivo, falha registrada como `provider_error` e contada no limite diário. A chamada real à IA ainda não foi testada.
+- Funções publicadas no remoto em 08/10/2026 (`ACTIVE`, SDK `@anthropic-ai/sdk@0.132.0`); chamada sem login recusada com `401`.
+- **Primeiro teste real (08/10/2026, foto JPEG de 1,8 MB):** o lote foi criado e terminou em ~5 minutos, mas a análise falhou com `provider_error`. Causa provável: o esquema tinha 21 campos anuláveis, e a saída estruturada aceita no máximo 16. Correção no esquema `lab-report/3` (instruções `lab-report/3-instructions/1`): textos ausentes viram string vazia e só números continuam anuláveis (13 campos). Um teste automatizado trava o limite. A migração `20261008000400_analysis_failure_detail.sql` (local e remoto) grava em `failure_detail` o tipo e a mensagem do erro do provedor, nunca o conteúdo do laudo. Falhas por pedido inválido passam a `provider_invalid_request`.
+- **Segundo teste real (08/10/2026):** falhou com `provider_invalid_request`, detalhe "The compiled grammar is too large". A saída estruturada não comporta este esquema, mesmo dentro do limite de 16 campos anuláveis. **Decisão:** a saída estruturada deixa de ser usada. O esquema vai junto das instruções (`systemPrompt` em `request.ts`, instruções `lab-report/3-instructions/2`, migração `20261008000500`), e a resposta continua validada inteira contra o esquema no servidor. Um JSON fora do formato termina em `invalid_output`, sem gravar nada. Os textos ausentes continuam como string vazia.
+
+### Conta e chave da API
+
+Configurado pelo usuário em 08/10/2026 no Console da Anthropic (platform.claude.com), uma conta separada da assinatura do Claude, com cobrança por uso:
+
+- **Crédito pré-pago de US$ 10, com recarga automática desativada.** Quando o saldo acaba, as chamadas param, sem gerar dívida. O limite da organização mostrado no painel (US$ 200 mil por mês) é só o teto do nível da conta.
+- **Workspace `exames-ia`**, separado do Default, com **limite de gasto de US$ 10 por mês**. O Default não aceita limite; a chave antiga que existia nele foi removida.
+- **Geografia:** dados em repouso nos EUA (a única opção disponível; não pode ser mudada depois). Inferência `global`, com preço normal; a opção `us` custa 1,1 vez mais. Isso é transferência internacional de dados, a avaliar junto com o jurídico (ver [Privacidade e LGPD](#privacidade-e-lgpd)).
+- **Chave `exames-ia-supabase`:** vinculada ao usuário, restrita ao workspace `exames-ia`, sem acesso à Admin API. **Expira em 08/01/2027, às 16:00 (horário de Brasília).**
+- A chave está só nos secrets do Supabase (`ANTHROPIC_API_KEY`), gravada pelo usuário no próprio terminal, sem passar pela conversa nem pelo repositório. Conferido por `supabase secrets list` (só o nome).
+
+**Troca da chave** (antes da expiração, ou se ela vazar):
+
+1. No Console, workspace `exames-ia`, criar uma chave nova.
+2. No terminal: `read -rs ANTHROPIC_API_KEY`, colar a chave; `npx supabase secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"`; `unset ANTHROPIC_API_KEY`.
+3. Excluir a chave antiga no Console.
+
+Se a chave expirar sem troca, as análises falham com erro do provedor, sem cobrança.
+
+### Travas de custo
+
+Decidido em 08/10/2026. A API de IA cobra só por uso, sem custo com o app parado, mas cada análise custa dinheiro. As travas abaixo dão um teto de gasto mesmo com erro no app ou uso indevido:
+
+- **Limite diário de análises por usuário.** Implementado em 08/10/2026 na migração `20261008000100_analysis_daily_limit.sql`, aplicada no Supabase local e, depois de `--dry-run` que listou apenas ela, no **remoto** (`migration list` conferido), com 18 testes pgTAP (`supabase/tests/analyses_daily_limit.test.sql`; 166 no total).
+  - `start_document_analysis` conta as análises que o usuário iniciou nas últimas 24 horas, **inclusive as que falharam**, porque elas também foram cobradas.
+  - Ao atingir o limite, recusa com `daily_limit_reached` (código `54000`) antes de criar a análise, baixar o arquivo e chamar a IA. O `detail` do erro traz, em UTC, quando a análise mais antiga sai da janela.
+  - Um bloqueio por usuário durante o início da análise impede que dois pedidos simultâneos, em documentos diferentes, passem juntos pela contagem.
+  - Valor provisório: **10 por 24 horas**, em `module_private.daily_analysis_limit()` e `module_private.daily_analysis_window()`. Mudar o valor exige uma migração pequena.
+  - `get_analysis_quota()` devolve ao app o limite, quantas foram usadas, quantas restam e quando a próxima fica disponível.
+- **Uma análise por vez por documento:** já existe.
+- **Teto por chamada:** `max_tokens` fixo e arquivo de no máximo 10 MB.
+- **Sem nova tentativa automática.** Se a chamada falhar, a análise termina em `failed` e só recomeça se o médico pedir. As novas tentativas automáticas da SDK ficam desligadas ou limitadas a uma.
+- **Crédito pré-pago no Console da Anthropic, sem recarga automática**, e com limite mensal de gasto. Isso fica fora do código, mas é a trava final: sem saldo, as chamadas param, sem gerar dívida.
+- **Registro de consumo:** os tokens de cada análise ficam gravados no log, como já previsto, para comparar o custo real com a estimativa.
+
+### Conferência com a camada de texto do PDF (proposta)
+
+Proposta registrada em 08/10/2026. Os laboratórios agora disponibilizam o laudo digital para download, e os PDFs recebidos até aqui têm camada de texto. Isso permite uma conferência automática da transcrição da IA, que a foto de papel não permite.
+
+Entre os passos 6 e 7, o código extrai o texto de cada página do PDF e procura nele o que a IA transcreveu:
+
+- `value_text` de cada parâmetro, na página indicada em `page`;
+- o nome do parâmetro (`name`) e o texto da referência (`reference.text`), na mesma página.
+
+A comparação ignora diferenças de espaços e quebras de linha. Cada parâmetro recebe um destes resultados:
+
+| Resultado | Significado | O que o app faz |
+| --- | --- | --- |
+| `found` | O valor transcrito está no texto da página. | Nada. |
+| `not_found` | O valor transcrito não aparece na página. | Ponto de atenção do tipo "conferir transcrição", com a página, para o médico olhar o original. |
+| `no_text_layer` | Foto, ou PDF escaneado sem texto. | Nada; a conferência não se aplica. |
+
+Cuidados:
+
+- **Avisa, não bloqueia.** A camada de texto pode quebrar tabelas de forma inesperada. Um `not_found` é um aviso para conferir, não uma prova de erro.
+- **Só confere presença.** Achar o valor na página não garante que ele pertence àquele parâmetro. As verificações de consistência continuam necessárias.
+- **Privacidade:** a camada de texto inclui nome e documento do paciente. Ela é processada só em memória na Edge Function e nunca é gravada nem registrada em log.
+- **Biblioteca:** a extração de texto de PDF precisa rodar no runtime da Edge Function (Deno). A escolha da biblioteca fica para a implementação, depois de verificar a compatibilidade.
+
+O mesmo mecanismo serve para a FASE 05, em que os trechos de cada estrutura são copiados literalmente do laudo ([descriptive-report.md](descriptive-report.md)). Na FASE 04, os parâmetros `not_found` aparecem em destaque quando o médico confere os valores antes de eles entrarem no histórico ([exam-comparison.md](exam-comparison.md)).
 
 ### Modelo de IA
 
@@ -369,7 +462,7 @@ Recebida em 02/10/2026: PDF de laboratório de grande rede, 1,4 MB, **26 página
 3. ~~Migração: `document_analyses`, privilégios, RLS e testes pgTAP.~~ Aplicado no local e no remoto em 05/10/2026.
 4. Pasta `modules/lab-report/` com a primeira versão da skill (instruções, esquema e exemplos) e script de publicação com versão fixa. **Esquema feito em 05/10/2026**; `SKILL.md` e publicação ficam para junto da função de análise (passo 6), quando der para testar as instruções com a IA.
 5. ~~Geração dos pontos de atenção em código, com testes automatizados.~~ Feito em 05/10/2026, com laudo fictício (`tests/fixtures/lab-report/fictitious-report.json`); o gabarito real fica para avaliar a extração da IA.
-6. Função de análise com o Claude Opus 5.5; testar com as amostras e medir o custo real por laudo.
+6. Função de análise com o Claude Opus 5.5; testar com as amostras e medir o custo real por laudo. Antes da primeira chamada real: o limite diário de análises no banco e as demais [travas de custo](#travas-de-custo).
 7. Teste comparativo com skill × sem skill (ver [Visão de produto](#visão-de-produto-módulos-de-análise-como-skills)); decidir o formato padrão dos módulos.
 8. Interface: consentimento, botão, progresso e tela de resultado para o médico.
 9. Validação no Android com o checklist acima; iOS quando possível.
@@ -388,4 +481,6 @@ Recebida em 02/10/2026: PDF de laboratório de grande rede, 1,4 MB, **26 página
 - [x] Texto do termo: o provisório da FASE 02 continua valendo por enquanto (03/10/2026); revisão jurídica antes de usuários externos.
 - [ ] Tolerâncias das verificações de consistência do hemograma: percentual e piso fixo. **Provisórias desde 05/10/2026** (`HEMOGRAM_TOLERANCES`): índices 1%; soma do diferencial ±2 pontos; absolutos 2% ou 0,1% dos leucócitos, o que for maior. Calibrar com mais amostras.
 - [x] Compartilhamento da análise: botão "Compartilhar esta análise" na tela de resultado; a análise fica visível para quem já tem acesso ao documento pela FASE 01, e desfazer remove esse acesso. Sem lista separada de pessoas (05/10/2026).
+- [x] Travas de custo: limite diário de análises por usuário (provisório: 10 por 24 horas, contando as falhas), sem nova tentativa automática, crédito pré-pago sem recarga automática ([detalhes](#travas-de-custo), 08/10/2026).
+- [ ] Conferência da transcrição com a camada de texto do PDF ([proposta](#conferência-com-a-camada-de-texto-do-pdf-proposta), 08/10/2026).
 - [x] Módulo em `testing`: libera a análise para quem tem liberação do módulo, como em `active`, para testar com a conta B antes de abrir a todos (05/10/2026).

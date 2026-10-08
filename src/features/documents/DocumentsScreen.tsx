@@ -84,7 +84,7 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
       const file = await pickDocument();
       if (!file || !mounted.current) return;
       await service.upload(file.name, file.bytes);
-      if (mounted.current) setNotice('Documento enviado. Os recursos de IA serão disponibilizados em uma próxima etapa.');
+      if (mounted.current) setNotice('Documento enviado. Toque em “Análise” para pedir a análise do laudo.');
     });
   }
 
@@ -138,6 +138,8 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
             const url = await service.open(item);
             if (mounted.current) await Linking.openURL(url);
           })} />}
+          {item.owner_id === userId && ['uploaded', 'processing', 'ready', 'failed'].includes(item.status) &&
+            <Action title="Análise" disabled={busy} onPress={() => router.push({ pathname: '/analysis', params: { documentId: item.id } })} />}
           {item.owner_id === userId && <Action title="Gerenciar" disabled={busy} onPress={() => manage(item)} />}
           {item.owner_id !== userId && <Text style={styles.hint}>Acesso de leitura</Text>}
         </View>
