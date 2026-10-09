@@ -290,7 +290,7 @@ Somente o proprietário com o módulo liberado pede análise, porque isso envolv
 3. Se o passo 2 recusar, devolve o motivo ao app (ex.: `module_not_available`, `analysis_in_progress`, `daily_limit_reached` com a data da próxima vaga) e para, sem baixar o arquivo.
 4. Confere que a versão das instruções gravada no catálogo (`analysis_modules.active_version`) é a mesma do código (`INSTRUCTIONS_VERSION`). Se não for, a análise falha com `module_version_mismatch`, sem chamar a IA.
 5. Baixa o arquivo do bucket privado com credencial de servidor. Essa credencial ignora RLS, então a autorização dos passos 1 e 2 é obrigatória antes do download.
-6. Cria um lote com um único pedido: instruções (`modules/lab-report/instructions.ts`), arquivo, esquema JSON fixo (saída estruturada), `max_tokens` fixo e esforço `medium`. A criação do lote **nunca é repetida automaticamente**, para não cobrar a mesma análise duas vezes.
+6. Cria um lote com um único pedido: instruções (`modules/lab-report/instructions.ts`) com o esquema JSON fixo no texto (sem saída estruturada, ver o segundo teste real abaixo), arquivo, `max_tokens` fixo e esforço `medium`. A criação do lote **nunca é repetida automaticamente**, para não cobrar a mesma análise duas vezes.
 7. Grava o identificador do lote (`set_analysis_batch`) e responde `202` na hora. Se não conseguir gravar, cancela o lote e marca a análise como falha.
 
 **`collect-analyses`** (`supabase/functions/collect-analyses/`), chamada pelo app enquanto houver análise em processamento:
@@ -313,6 +313,23 @@ A chave do provedor de IA fica nos secrets do Supabase, nunca no app nem no repo
 - Funções publicadas no remoto em 08/10/2026 (`ACTIVE`, SDK `@anthropic-ai/sdk@0.132.0`); chamada sem login recusada com `401`.
 - **Primeiro teste real (08/10/2026, foto JPEG de 1,8 MB):** o lote foi criado e terminou em ~5 minutos, mas a análise falhou com `provider_error`. Causa provável: o esquema tinha 21 campos anuláveis, e a saída estruturada aceita no máximo 16. Correção no esquema `lab-report/3` (instruções `lab-report/3-instructions/1`): textos ausentes viram string vazia e só números continuam anuláveis (13 campos). Um teste automatizado trava o limite. A migração `20261008000400_analysis_failure_detail.sql` (local e remoto) grava em `failure_detail` o tipo e a mensagem do erro do provedor, nunca o conteúdo do laudo. Falhas por pedido inválido passam a `provider_invalid_request`.
 - **Segundo teste real (08/10/2026):** falhou com `provider_invalid_request`, detalhe "The compiled grammar is too large". A saída estruturada não comporta este esquema, mesmo dentro do limite de 16 campos anuláveis. **Decisão:** a saída estruturada deixa de ser usada. O esquema vai junto das instruções (`systemPrompt` em `request.ts`, instruções `lab-report/3-instructions/2`, migração `20261008000500`), e a resposta continua validada inteira contra o esquema no servidor. Um JSON fora do formato termina em `invalid_output`, sem gravar nada. Os textos ausentes continuam como string vazia.
+
+- **Terceiro teste real (08/10/2026, foto de um laudo de ultrassom):** terminou corretamente como `no_lab_exams` depois de ~20 minutos. O modelo reconheceu que o documento não tem exames laboratoriais e não inventou valores.
+
+### Laudo em várias páginas
+
+**Decidido pelo usuário em 08/10/2026:** uma análise corresponde a **um toque no botão**, não importa quantas páginas o laudo tenha. O **modelo** põe as páginas em ordem; o app não exige ordem do usuário.
+
+Como cada documento tem um único arquivo, e a análise, o compartilhamento (FASE 01) e o limite diário funcionam por documento, um laudo fotografado em várias páginas vira **um único PDF montado no aparelho** antes do envio (decidido em 09/10/2026). Banco e Edge Functions não mudam.
+
+- `src/features/documents/photos-pdf.ts`: o usuário escolhe várias fotos; cada uma é reduzida para no máximo **2000 px** no lado maior e salva em JPEG com qualidade **0.7** (`expo-image-manipulator`), e as fotos viram um PDF A4, uma por página (`expo-print`). No iOS o HTML de impressão não carrega arquivos locais, por isso as imagens entram em base64.
+- **Câmera dentro do app** (`expo-camera`, `src/features/documents/DocumentCamera.tsx`): o usuário tira uma foto por página, sem sair do app, e toca em "Concluir". A câmera do sistema (`expo-image-picker`) foi testada em 09/10/2026 e descartada: no Android, enquanto ela fica aberta, o sistema pode encerrar o app para liberar memória, e a foto e as anteriores se perdem.
+- As fotos da galeria vêm do seletor do sistema (`expo-image-picker`), que funcionou no teste.
+- As cópias das fotos e o PDF são apagados do cache do aparelho logo depois de lidos. As fotos originais da galeria não são tocadas.
+- O PDF passa pelas mesmas regras de qualquer documento (até 10 MB) e é enviado como um documento normal.
+- **Ordem das páginas no PDF:** a opção que devolve as fotos na ordem em que foram tocadas (`orderedSelection`) só existe no iOS; no Android, as fotos chegam na ordem do seletor do sistema. **Decidido pelo usuário em 09/10/2026: não reordenar**, porque o modelo põe as páginas em ordem.
+
+**Testado em 09/10/2026 no Android (Expo Go):** 3 fotos de um laudo viraram um PDF de **0,8 MB** (~270 KB por página), com o texto miúdo legível e as páginas inteiras, mas fora da ordem em que foram escolhidas (ver acima). No mesmo dia, o fluxo completo funcionou no Android: fotos tiradas em sequência com a câmera dentro do app, miniaturas, remoção de uma foto e envio como um único PDF. Com esses valores, os 10 MB comportam ~35 páginas; o app limita a 20 fotos por envio. No Expo Go, ler o PDF gerado pelo `FileSystem` é bloqueado (expo/expo#21792); o app o lê com `fetch`, como já fazia no seletor de arquivos.
 
 ### Conta e chave da API
 
