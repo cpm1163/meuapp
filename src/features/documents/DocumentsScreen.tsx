@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createDocumentService, documentError, PAGE_SIZE, type DocumentRecord, type DocumentShare } from './service';
 import { pickDocument } from './picker';
+import { PhotoCapture } from './PhotoCapture';
+import { photosToPdf, type Photo } from './photos-pdf';
 
 type Props = { userId: string; accessToken: string };
 const statuses: Record<DocumentRecord['status'], string> = {
@@ -32,6 +34,7 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const mounted = useRef(true);
   const operation = useRef(false);
   const request = useRef(0);
@@ -88,6 +91,18 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
     });
   }
 
+  // One report photographed in several pages becomes one PDF document (docs/compliance.md, "Laudo em várias páginas").
+  async function sendPhotos(photos: Photo[]) {
+    let sent = false;
+    await run(async () => {
+      const pdf = await photosToPdf(photos);
+      await service.upload(pdf.name, pdf.bytes);
+      sent = true;
+      if (mounted.current) setNotice(`Laudo enviado como um documento de ${pdf.pages} página(s). Toque em “Análise” para pedir a análise.`);
+    });
+    return sent;
+  }
+
   async function loadMore() {
     if (loading || busy || !hasMore) return;
     const version = ++request.current;
@@ -115,6 +130,7 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
     <Text style={styles.subtitle}>Arquivos privados, compartilhados com quem você escolher.</Text>
     <Action title={busy ? 'Aguarde…' : '+ Adicionar documento'} onPress={upload} disabled={busy} />
     <Text style={styles.hint}>PDF, PNG ou JPEG · até 10 MB</Text>
+    {Platform.OS !== 'web' && <Action title="+ Fotografar laudo" onPress={() => { setError(''); setNotice(''); setCapturing(true); }} disabled={busy} />}
     <View style={styles.tabs}>
       {(['mine', 'shared'] as const).map(value => <Pressable key={value} accessibilityRole="tab"
         accessibilityState={{ selected: scope === value, disabled: busy }} disabled={busy} onPress={() => { if (scope !== value) { setDocuments([]); setLoading(true); setError(''); setNotice(''); setScope(value); } }}
@@ -144,6 +160,8 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
           {item.owner_id !== userId && <Text style={styles.hint}>Acesso de leitura</Text>}
         </View>
       </View>} />
+
+    {capturing && <PhotoCapture busy={busy} sendError={error} onSend={sendPhotos} onClose={() => setCapturing(false)} />}
 
     <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => { if (!busy) setSelected(null); }}>
       <View style={styles.backdrop}><View accessibilityViewIsModal style={styles.modal}>
