@@ -24,7 +24,7 @@ select throws_ok($$select public.admin_set_module_status('lab-report','active')$
 select throws_ok($$update public.analysis_modules set status='active'$$,'42501',null,'user cannot update catalog');
 select is((select count(*) from public.analysis_modules),0::bigint,'draft module hidden from user without grant');
 select throws_ok($$select public.accept_module_terms('lab-report')$$,'42501',null,'terms require a grant');
-select is((select count(*) from public.requestable_modules()),1::bigint,'user without grant can request the module');
+select is((select count(*) from public.requestable_modules() where module_id='lab-report'),1::bigint,'user without grant can request the module');
 select throws_ok($$insert into public.module_requests(user_id,module_id) values ('30000000-0000-0000-0000-000000000002','lab-report')$$,'42501',null,'user cannot insert request directly');
 select lives_ok($$select public.request_module('lab-report')$$,'user requests module');
 select throws_ok($$select public.request_module('lab-report')$$,'23505',null,'duplicate pending request rejected');
@@ -34,7 +34,7 @@ select throws_ok($$select * from public.admin_list_module_requests()$$,'42501',n
 -- A (admin)
 select set_config('request.jwt.claim.sub','30000000-0000-0000-0000-000000000001',true);
 select is((select count(*) from public.app_admins),1::bigint,'admin sees own admin row');
-select is((select count(*) from public.analysis_modules),1::bigint,'admin sees draft module');
+select is((select count(*) from public.analysis_modules where id='lab-report'),1::bigint,'admin sees draft module');
 select is((select user_id from public.admin_find_user(' BUYER@module.test ')),'30000000-0000-0000-0000-000000000002'::uuid,'admin finds account by exact e-mail');
 select is((select count(*) from public.admin_find_user('buyer@')),0::bigint,'partial e-mail finds nothing');
 select throws_ok($$select public.admin_grant_module('30000000-0000-0000-0000-000000000009','lab-report')$$,'22023',null,'unknown user rejected');
@@ -53,7 +53,7 @@ select is((select count(*) from public.module_grants),1::bigint,'user sees own g
 select is((select count(*) from public.analysis_modules),1::bigint,'user sees granted draft module');
 select is((select active from public.my_modules() where module_id='lab-report'),true,'grant is active');
 select is((select terms_accepted from public.my_modules() where module_id='lab-report'),false,'terms not yet accepted');
-select is((select count(*) from public.requestable_modules()),0::bigint,'granted module is not requestable');
+select is((select count(*) from public.requestable_modules() where module_id='lab-report'),0::bigint,'granted module is not requestable');
 select throws_ok($$select public.request_module('lab-report')$$,'22023',null,'request rejected while grant is active');
 select throws_ok($$update public.module_grants set expires_at = now() + interval '10 years'$$,'42501',null,'user cannot extend own grant');
 select throws_ok($$delete from public.module_grants$$,'42501',null,'user cannot delete grant');
