@@ -9,7 +9,12 @@ export type DocumentRecord = {
   size_bytes: number | null;
   status: 'pending_upload' | 'uploaded' | 'processing' | 'ready' | 'failed' | 'deleting';
   created_at: string;
+  patient_id: string | null;
+  // Null for documents shared by another doctor: their patient records are never visible.
+  patient: { display_name: string } | null;
 };
+// 'unassigned' = own documents without a patient; 'patient' = own documents of patientId.
+export type DocumentScope = 'mine' | 'shared' | 'unassigned' | 'patient';
 export type DocumentShare = { user_id: string; email: string; created_at: string };
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -25,21 +30,25 @@ export function createDocumentService(accessToken: string) {
   const bucket = client.storage.from('documents');
 
   return {
-    async list(userId: string, scope: 'mine' | 'shared', offset = 0) {
-      let query = client.from('documents').select('*').order('created_at', { ascending: false }).order('id');
-      query = scope === 'mine' ? query.eq('owner_id', userId) : query.neq('owner_id', userId);
+    async list(userId: string, scope: DocumentScope, offset = 0, patientId?: string) {
+      let query = client.from('documents').select('*, patient:patients(display_name)').order('created_at', { ascending: false }).order('id');
+      query = scope === 'shared' ? query.neq('owner_id', userId) : query.eq('owner_id', userId);
+      if (scope === 'unassigned') query = query.is('patient_id', null);
+      if (scope === 'patient') query = query.eq('patient_id', patientId ?? '');
       const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
       if (error) throw error;
       return data as DocumentRecord[];
     },
     async get(id: string) {
-      const { data, error } = await client.from('documents').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await client.from('documents').select('*, patient:patients(display_name)').eq('id', id).maybeSingle();
       if (error) throw error;
       return data as DocumentRecord | null;
     },
-    async upload(name: string, bytes: ArrayBuffer) {
+    async upload(name: string, bytes: ArrayBuffer, patientId?: string) {
       const contentType = detectDocumentType(bytes);
-      const { data, error } = await client.rpc('create_document', { document_name: name, content_type: contentType });
+      const { data, error } = await client.rpc('create_document', {
+        document_name: name, content_type: contentType, ...(patientId ? { patient_id: patientId } : {}),
+      });
       if (error) throw error;
       const document = data as DocumentRecord;
       // Keep the reservation if upload/finalization fails. The owner can retry completion or delete it.

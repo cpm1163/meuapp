@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/providers/auth-provider";
 import { supabase } from "@/lib/supabase";
 import { createModuleService } from "@/features/modules/service";
+import { PATIENT_MODULE } from "@/features/patients/service";
 import { DevAccountSwitcher } from "@/features/dev/DevAccountSwitcher";
 
 const actions = [
@@ -38,6 +39,7 @@ export default function Home() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [adminCheck, setAdminCheck] = useState<{ userId: string; value: boolean } | null>(null);
+  const [patientsCheck, setPatientsCheck] = useState<{ userId: string; value: boolean } | null>(null);
   const modules = useMemo(() => session ? createModuleService(session.access_token) : null, [session]);
   const userId = session?.user.id;
 
@@ -45,10 +47,15 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     if (modules && userId) void modules.isAdmin(userId).then(value => { if (active) setAdminCheck({ userId, value }); }).catch(() => {});
+    // Shown to anyone who ever had the module, so an expired grant still reaches the existing records.
+    if (modules && userId) void modules.myModules().then(rows => {
+      if (active) setPatientsCheck({ userId, value: rows.some(row => row.module_id === PATIENT_MODULE) });
+    }).catch(() => {});
     return () => { active = false; };
   }, [modules, userId]);
   // A result from a previous account never applies to the current one.
   const isAdmin = !!adminCheck && adminCheck.userId === userId && adminCheck.value;
+  const hasPatients = !!patientsCheck && patientsCheck.userId === userId && patientsCheck.value;
   const rawName = session?.user.user_metadata?.full_name;
   const name = typeof rawName === "string" ? rawName.trim().split(/\s+/)[0] : "";
   const initial = (name || session?.user.email || "D").charAt(0).toUpperCase();
@@ -150,6 +157,11 @@ export default function Home() {
           <Text style={styles.sectionTitle}>Módulos</Text>
         </View>
         <View style={styles.actionList}>
+          {hasPatients && <Pressable accessibilityRole="button" onPress={() => router.push("/patients")} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            <View style={[styles.actionIcon, { backgroundColor: "#EEEAFE" }]}><Text style={[styles.actionSymbol, { color: "#7050CC" }]}>☰</Text></View>
+            <View style={styles.actionCopy}><Text style={styles.actionTitle}>Pacientes</Text><Text style={styles.actionSubtitle}>Documentos organizados por paciente</Text></View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>}
           <Pressable accessibilityRole="button" onPress={() => router.push("/modules")} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
             <View style={[styles.actionIcon, { backgroundColor: "#E6F3EE" }]}><Text style={[styles.actionSymbol, { color: "#2B8065" }]}>◆</Text></View>
             <View style={styles.actionCopy}><Text style={styles.actionTitle}>Meus módulos</Text><Text style={styles.actionSubtitle}>Recursos liberados para você</Text></View>

@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, AppState, FlatList, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createDocumentService, documentError, PAGE_SIZE, type DocumentRecord, type DocumentShare } from './service';
+import { createPatientService, patientError, type PatientListItem } from '@/features/patients/service';
+import { createDocumentService, documentError, PAGE_SIZE, type DocumentRecord, type DocumentScope, type DocumentShare } from './service';
 import { pickDocument } from './picker';
 import { PhotoCapture } from './PhotoCapture';
 import { photosToPdf, type Photo } from './photos-pdf';
 
-type Props = { userId: string; accessToken: string };
+// With patientId, the screen lists and uploads that patient's documents and `header` replaces the title.
+type Props = { userId: string; accessToken: string; initialScope?: DocumentScope; patientId?: string; header?: ReactNode };
+const scopeTitles: Record<Exclude<DocumentScope, 'patient'>, string> = { mine: 'Meus documentos', unassigned: 'Sem paciente', shared: 'Compartilhados comigo' };
+const emptyTexts: Record<DocumentScope, string> = {
+  mine: 'Você ainda não adicionou documentos.', unassigned: 'Nenhum documento sem paciente.',
+  shared: 'Nenhum documento compartilhado com você.', patient: 'Nenhum documento deste paciente ainda.',
+};
 const statuses: Record<DocumentRecord['status'], string> = {
   pending_upload: 'Envio pendente', uploaded: 'Arquivo disponível', processing: 'Processando',
   ready: 'Pronto', failed: 'Processamento falhou', deleting: 'Exclusão pendente',
@@ -20,9 +27,13 @@ function Action({ title, onPress, disabled = false, danger = false }: { title: s
   </Pressable>;
 }
 
-export function DocumentsScreen({ userId, accessToken }: Props) {
+export function DocumentsScreen({ userId, accessToken, initialScope, patientId, header: patientHeader }: Props) {
   const service = useMemo(() => createDocumentService(accessToken), [accessToken]);
-  const [scope, setScope] = useState<'mine' | 'shared'>('mine');
+  const patients = useMemo(() => createPatientService(accessToken), [accessToken]);
+  const [scope, setScope] = useState<DocumentScope>(patientId ? 'patient' : initialScope ?? 'mine');
+  const [patientAccess, setPatientAccess] = useState({ granted: false, canUse: false });
+  const [patientSearch, setPatientSearch] = useState('');
+  const [patientResults, setPatientResults] = useState<PatientListItem[] | null>(null);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -44,18 +55,18 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
     const version = ++request.current;
     setLoading(true);
     try {
-      const rows = await service.list(userId, scope);
+      const rows = await service.list(userId, scope, 0, patientId);
       if (!mounted.current || version !== request.current) return;
       setDocuments(rows); setHasMore(rows.length === PAGE_SIZE);
     } catch (e) {
       if (mounted.current && version === request.current) { setDocuments([]); setHasMore(false); setError(documentError(e)); }
     } finally { if (mounted.current && version === request.current) setLoading(false); }
-  }, [scope, service, userId]);
+  }, [patientId, scope, service, userId]);
 
   useEffect(() => {
     let active = true;
     const version = ++request.current;
-    void service.list(userId, scope).then(rows => {
+    void service.list(userId, scope, 0, patientId).then(rows => {
       if (active && mounted.current && version === request.current) {
         setDocuments(rows); setHasMore(rows.length === PAGE_SIZE); setLoading(false);
       }
@@ -68,7 +79,12 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
       if (state === 'active') { setSelected(null); setShares([]); void refresh(); }
     });
     return () => { active = false; listener.remove(); };
-  }, [refresh, service, userId, scope]);
+  }, [refresh, service, userId, scope, patientId]);
+
+  // Display only: the database decides who may link documents to patients.
+  useEffect(() => {
+    void patients.moduleAccess().then(access => { if (mounted.current) setPatientAccess(access); }).catch(() => {});
+  }, [patients]);
 
   async function run(task: () => Promise<void>) {
     if (operation.current) return;
@@ -86,7 +102,7 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
     void run(async () => {
       const file = await pickDocument();
       if (!file || !mounted.current) return;
-      await service.upload(file.name, file.bytes);
+      await service.upload(file.name, file.bytes, patientId);
       if (mounted.current) setNotice('Documento enviado. Toque em “Análise” para pedir a análise do laudo.');
     });
   }
@@ -96,7 +112,7 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
     let sent = false;
     await run(async () => {
       const pdf = await photosToPdf(photos);
-      await service.upload(pdf.name, pdf.bytes);
+      await service.upload(pdf.name, pdf.bytes, patientId);
       sent = true;
       if (mounted.current) setNotice(`Laudo enviado como um documento de ${pdf.pages} página(s). Toque em “Análise” para pedir a análise.`);
     });
@@ -108,7 +124,7 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
     const version = ++request.current;
     setLoading(true);
     try {
-      const rows = await service.list(userId, scope, documents.length);
+      const rows = await service.list(userId, scope, documents.length, patientId);
       if (!mounted.current || version !== request.current) return;
       setDocuments(previous => [...previous, ...rows.filter(row => !previous.some(old => old.id === row.id))]);
       setHasMore(rows.length === PAGE_SIZE);
@@ -118,24 +134,50 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
 
   function manage(document: DocumentRecord) {
     setSelected(document); setName(document.name); setEmail(''); setShares([]); setConfirmDelete(false);
+    setPatientSearch(''); setPatientResults(null);
     void run(async () => {
       const rows = await service.shares(document.id);
       if (mounted.current) setShares(rows);
     });
   }
 
+  function findPatients() {
+    void run(async () => {
+      try {
+        const rows = await patients.list(patientSearch);
+        if (mounted.current) setPatientResults(rows.slice(0, 5));
+      } catch (e) { if (mounted.current) setError(patientError(e)); }
+    });
+  }
+
+  // Linking needs the module; unlinking is always allowed (docs/exam-comparison.md).
+  function linkPatient(patient: { id: string; display_name: string } | null) {
+    void run(async () => {
+      if (!selected) return;
+      try { await patients.setDocumentPatient(selected.id, patient?.id ?? null); }
+      catch (e) { if (mounted.current) setError(patientError(e)); return; }
+      if (mounted.current) {
+        setSelected({ ...selected, patient_id: patient?.id ?? null, patient: patient ? { display_name: patient.display_name } : null });
+        setPatientResults(null); setPatientSearch('');
+      }
+    });
+  }
+
+  const tabs: Exclude<DocumentScope, 'patient'>[] = patientAccess.granted ? ['mine', 'unassigned', 'shared'] : ['mine', 'shared'];
   const header = <View style={styles.header}>
-    <Action title="‹ Voltar" onPress={() => router.back()} />
-    <Text style={styles.title}>Seus documentos</Text>
-    <Text style={styles.subtitle}>Arquivos privados, compartilhados com quem você escolher.</Text>
+    {patientHeader ?? <>
+      <Action title="‹ Voltar" onPress={() => router.back()} />
+      <Text style={styles.title}>Seus documentos</Text>
+      <Text style={styles.subtitle}>Arquivos privados, compartilhados com quem você escolher.</Text>
+    </>}
     <Action title={busy ? 'Aguarde…' : '+ Adicionar documento'} onPress={upload} disabled={busy} />
     <Text style={styles.hint}>PDF, PNG ou JPEG · até 10 MB</Text>
     {Platform.OS !== 'web' && <Action title="+ Fotografar laudo" onPress={() => { setError(''); setNotice(''); setCapturing(true); }} disabled={busy} />}
-    <View style={styles.tabs}>
-      {(['mine', 'shared'] as const).map(value => <Pressable key={value} accessibilityRole="tab"
+    {!patientId && <View style={styles.tabs}>
+      {tabs.map(value => <Pressable key={value} accessibilityRole="tab"
         accessibilityState={{ selected: scope === value, disabled: busy }} disabled={busy} onPress={() => { if (scope !== value) { setDocuments([]); setLoading(true); setError(''); setNotice(''); setScope(value); } }}
-        style={[styles.tab, scope === value && styles.activeTab]}><Text style={styles.buttonText}>{value === 'mine' ? 'Meus documentos' : 'Compartilhados comigo'}</Text></Pressable>)}
-    </View>
+        style={[styles.tab, scope === value && styles.activeTab]}><Text style={styles.buttonText}>{scopeTitles[value]}</Text></Pressable>)}
+    </View>}
     {!!error && <Text accessibilityRole="alert" style={styles.danger}>{error}</Text>}
     {!!notice && <Text accessibilityLiveRegion="polite" style={styles.subtitle}>{notice}</Text>}
     <Action title="Atualizar lista" onPress={() => { setError(''); void refresh(); }} disabled={busy || loading} />
@@ -144,10 +186,11 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
   return <SafeAreaView style={styles.screen}>
     <FlatList data={documents} keyExtractor={item => item.id} contentContainerStyle={styles.content}
       ListHeaderComponent={header}
-      ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Carregando documentos" /> : <Text style={styles.empty}>{scope === 'mine' ? 'Você ainda não adicionou documentos.' : 'Nenhum documento compartilhado com você.'}</Text>}
+      ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Carregando documentos" /> : <Text style={styles.empty}>{emptyTexts[scope]}</Text>}
       ListFooterComponent={documents.length > 0 ? <View>{loading && <ActivityIndicator />}{hasMore && <Action title="Carregar mais" disabled={loading || busy} onPress={() => void loadMore()} />}</View> : null}
       renderItem={({ item }) => <View style={styles.card}>
         <Text style={styles.documentName}>{item.name}</Text>
+        {!patientId && !!item.patient && <Text style={styles.hint}>Paciente: {item.patient.display_name}</Text>}
         <Text style={styles.hint}>{statuses[item.status]}{item.size_bytes ? ` · ${(item.size_bytes / 1024 / 1024).toFixed(1)} MB` : ''}</Text>
         <View style={styles.actions}>
           {!['pending_upload', 'deleting'].includes(item.status) && <Action title="Abrir arquivo" disabled={busy} onPress={() => void run(async () => {
@@ -177,6 +220,19 @@ export function DocumentsScreen({ userId, accessToken }: Props) {
               <Action title="Salvar nome" disabled={busy || !name.trim()} onPress={() => void run(async () => {
                 if (!selected) return; await service.rename(selected.id, name); if (mounted.current) setSelected(null);
               })} />
+            </>}
+            {selected && selected.status !== 'deleting' && (patientAccess.granted || !!selected.patient_id) && <>
+              <Text style={styles.documentName}>Paciente</Text>
+              <Text style={styles.subtitle}>{selected.patient ? selected.patient.display_name : 'Sem paciente'}</Text>
+              {!!selected.patient_id && <Action title="Desvincular do paciente" disabled={busy} onPress={() => linkPatient(null)} />}
+              {patientAccess.canUse && <>
+                <TextInput accessibilityLabel="Buscar paciente por nome ou CPF" placeholder="Trocar paciente: nome ou CPF completo" value={patientSearch}
+                  onChangeText={setPatientSearch} onSubmitEditing={findPatients} returnKeyType="search" autoCorrect={false} editable={!busy} style={styles.input} />
+                <Action title="Buscar paciente" disabled={busy} onPress={findPatients} />
+                {patientResults?.length === 0 && <Text style={styles.hint}>Nenhum paciente encontrado. Cadastre-o em “Pacientes”.</Text>}
+                {patientResults?.filter(patient => patient.id !== selected.patient_id).map(patient =>
+                  <Action key={patient.id} title={`Vincular a ${patient.display_name}`} disabled={busy} onPress={() => linkPatient(patient)} />)}
+              </>}
             </>}
             {selected && !['pending_upload','deleting'].includes(selected.status) && <>
               <Text style={styles.documentName}>Compartilhar para leitura</Text>
