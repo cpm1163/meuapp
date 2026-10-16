@@ -28,6 +28,7 @@ const REASONS: Record<string, string> = {
   lab_flag_differs: 'A marcação do laboratório difere da comparação com a referência; confira no laudo',
   value_not_read: 'Valor não lido',
   reference_not_parsed: 'Referência não interpretada',
+  qualitative_range: 'A referência é uma faixa em palavras; o app não sabe a ordem da escala, confira no laudo',
   unit_not_recognized: 'Unidade não reconhecida',
   partial_legibility: 'Parte do documento está ilegível',
   exam_not_extracted: 'Exame listado no laudo e não lido',

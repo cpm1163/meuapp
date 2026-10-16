@@ -1,5 +1,5 @@
 import { createClient, FunctionsHttpError } from '@supabase/supabase-js';
-import type { Finding } from '../../../modules/lab-report/findings';
+import type { Extraction, Finding } from '../../../modules/lab-report/findings';
 
 export const MODULE_ID = 'lab-report';
 
@@ -9,11 +9,14 @@ export type Analysis = {
   status: 'processing' | 'ready' | 'failed';
   failure_reason: string | null;
   findings: Finding[] | null;
+  extraction: Extraction | null;
   model: string | null;
   created_at: string;
   completed_at: string | null;
 };
-export type Quota = { daily_limit: number; used: number; remaining: number; next_available_at: string | null };
+export type AnalysisSummary = Pick<Analysis, 'id' | 'status' | 'created_at'>;
+const ANALYSIS_COLUMNS = 'id, document_id, status, failure_reason, findings, extraction, model, created_at, completed_at';
+export type Quota ={ daily_limit: number; used: number; remaining: number; next_available_at: string | null };
 export type ModuleAccess = 'ready' | 'not_granted' | 'terms_pending' | 'not_available';
 
 /** Error with the code returned by the analysis functions (e.g. daily_limit_reached). */
@@ -43,8 +46,20 @@ export function createAnalysisService(accessToken: string) {
   return {
     async latest(documentId: string) {
       const { data, error } = await client.from('document_analyses')
-        .select('id, document_id, status, failure_reason, findings, model, created_at, completed_at')
+        .select(ANALYSIS_COLUMNS)
         .eq('document_id', documentId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      return data as Analysis | null;
+    },
+    // All analyses of the document, most recent first, without the findings (loaded only when one is opened).
+    async history(documentId: string) {
+      const { data, error } = await client.from('document_analyses')
+        .select('id, status, created_at').eq('document_id', documentId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as AnalysisSummary[];
+    },
+    async get(id: string) {
+      const { data, error } = await client.from('document_analyses').select(ANALYSIS_COLUMNS).eq('id', id).maybeSingle();
       if (error) throw error;
       return data as Analysis | null;
     },

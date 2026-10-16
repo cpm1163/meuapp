@@ -65,6 +65,41 @@ Decidido pelo usuário em 09/10/2026. Hoje o app guarda **os documentos e as an�
 
 **Implementado em 09/10/2026:** migração `20261009000100_patient_records.sql` (tabela `patients`, `documents.patient_id`, funções de cadastro, vínculo e busca, módulo `patient-records` em `testing`), com 44 testes pgTAP (221 no total), aplicada no local e, depois de `--dry-run` que listou apenas ela, no **remoto** (`migration list` conferido). Telas: Pacientes, Paciente (dados e documentos), aba "Sem paciente" e vínculo em "Gerenciar". **Validado no Android (Expo Go) em 09/10/2026:** liberação e aceite do módulo, cadastro com CPF, envio vinculado, busca por nome e CPF, recusa ao excluir paciente com documento e exclusão depois de desvincular.
 
+### Fechamento da gestão por paciente (planejado em 16/10/2026)
+
+Decidido pelo usuário em 16/10/2026: antes da comparação, fechar o ciclo **cadastrar paciente → enviar exame → análise pela IA → encontrar tudo no paciente**. Sem código nesta data; só o plano.
+
+**Entidades** (confirmadas pelo usuário em 16/10/2026):
+
+| Entidade | Tabela | Relação |
+| --- | --- | --- |
+| Usuário (médico; "cliente" na fala do usuário é o **paciente**) | `auth.users` | Único usuário do app; dono de tudo abaixo. |
+| Paciente | `patients` | Um médico tem vários pacientes. |
+| Exame (laudo do laboratório, PDF ou fotos) | `documents` | Um paciente tem vários exames; vínculo opcional. O exame é feito pelo paciente no laboratório; no app ele serve para gerar a análise. |
+| Análise (IA) | `document_analyses` | Um exame tem uma ou mais análises. |
+
+O laboratório continua sendo só contexto extraído do laudo. Um laudo pode trazer vários exames (hemograma, glicose etc.); por isso a comparação futura é **por valor**, a partir de `lab_results` (abaixo), e não análise inteira contra análise inteira.
+
+**Decisões:**
+
+- **Exame ↔ análise nos dois sentidos:** ao ver um exame, chega-se à análise; ao ver a análise, chega-se ao exame.
+- ~~**A análise fica só no app**, ligada ao exame. Não vira PDF nem arquivo próprio.~~ Revisto pelo usuário no mesmo dia (16/10/2026), para compartilhar com um médico parceiro **fora do app, pelo WhatsApp**: a análise continua guardada só no app, mas o médico pode **gerar um PDF do relatório** e enviá-lo pela janela de compartilhar do celular. O PDF **não leva identificação do paciente** (sem nome e sem CPF; só idade e sexo), traz o aviso de que é transcrição automática, não laudo nem diagnóstico ([compliance.md](compliance.md#regulação)), e não é guardado no banco. Antes de enviar, o app avisa que o PDF não pode ser recolhido depois de enviado.
+- **Relatório do exame (nível A, 16/10/2026)**, a partir de um exemplo de relatório enviado por um médico: no lugar da lista só de exceções, a tela mostra o cabeçalho (laboratório, data da coleta, idade e sexo), os pontos de atenção (sem as notas do laboratório, que ficam recolhidas em cada exame) e **todos os parâmetros por exame**, com valor, referência impressa e situação calculada pelo código, **em cores** (verde dentro; vermelho acima, abaixo ou diferente do esperado; âmbar conferir ou não comparado; cinza sem referência). As cores seguem só a referência impressa, nunca gravidade clínica. Idade e sexo impressos no laudo têm prioridade; o cadastro do paciente completa o que faltar, para escolher a linha de tabelas por sexo e idade. Ficam para o nível B (consulta regulatória): referência da literatura quando o laudo não traz, interferências, considerações clínicas e bibliografia.
+- **Alerta de paciente errado (16/10/2026):** quando o sexo impresso no laudo difere do cadastro, ou a idade impressa difere em mais de 1 ano da idade calculada pelo nascimento do cadastro na data da coleta, a análise mostra no topo "Confira se este exame é deste paciente", com os dois valores. É o principal risco da gestão por paciente (exame vinculado à pessoa errada). Só no app; o PDF não leva identificação. Sem data de coleta, a idade não é comparada. A IA não recebe os dados do cadastro.
+- **Completar o cadastro (16/10/2026):** quando o cadastro não tem sexo e o laudo imprime, a análise oferece "Usar Masculino/Feminino no cadastro" (só por toque do médico, nunca automático). Quando falta a data de nascimento e o laudo imprime a idade, o app só orienta a cadastrá-la, porque a idade não dá a data.
+- **Reanálise:** a análise mais recente é a que vale (inclusive para a comparação futura); as anteriores ficam acessíveis como histórico.
+
+**Já existe** (a tela Paciente reaproveita a lista de documentos): envio de exame já vinculado ao paciente (arquivo, fotos e câmera do app), "Abrir arquivo" e "Análise" em cada exame, e "Abrir laudo original" na tela de análise.
+
+**Falta:**
+
+1. Na lista de exames (do paciente e geral), mostrar a situação da análise de cada exame: sem análise, em andamento, pronta ou falhou. **Feito em 16/10/2026:** a lista traz a análise mais recente de cada exame na mesma consulta (sem migração; RLS das análises inalterada), mostra a situação nos exames do próprio médico e recarrega ao voltar da tela de análise. Conferido no Supabase local (só a mais recente; outra conta não vê). **Validado no Android (Expo Go, remoto):** "Sem análise" nos exames do paciente. Em 16/10/2026 também "Análise em andamento" e "Análise falhou", com análises reais de um Doppler de carótida (laudo descritivo; ver item 4). Falta ver "Análise pronta".
+2. Na tela de análise, mostrar de qual exame e de qual paciente ela é, com acesso de volta ao paciente. **Feito em 16/10/2026 (falta validar no Android):** o topo mostra "Exame" e "Paciente" (quando há vínculo), com "Abrir exame" em qualquer situação da análise (antes "Abrir laudo original", só com a análise pronta) e "Ver paciente", que volta ao paciente se ele já estiver na pilha ou troca a tela pela dele (`router.dismissTo`). **Validado no Android em 16/10/2026** (exame e paciente no topo, mensagem de laudo descritivo).
+3. Histórico de análises do exame: a mais recente em destaque e o acesso às anteriores. **Feito em 16/10/2026 (falta validar no Android):** com mais de uma análise, a tela de análise lista "Análises deste exame" (data, situação, "mais recente"); tocar numa anterior a abre com o aviso "Análise anterior, de …" e "Ver a mais recente". Os pontos de atenção de uma análise anterior só são carregados quando ela é aberta. Enquanto se vê uma anterior, os cartões de andamento e de nova análise ficam ocultos.
+4. Validar no Android com um laudo de sangue real, do cadastro do paciente até a análise pronta aparecendo no paciente. Isso também fecha o teste pendente da FASE 03 ([compliance.md](compliance.md)). Em 16/10/2026 um Doppler de carótida (2 fotos) foi analisado duas vezes, como fotos avulsas e como PDF de 2 páginas: as duas terminaram corretamente em `no_lab_exams` em cerca de 2 minutos. Falta o laudo de sangue.
+
+Fica para depois: a conferência dos valores pelo médico e a comparação (passos 4 a 7 desta fase). **Foto no cadastro do paciente:** adiada pelo usuário em 16/10/2026. Ao retomar, considerar a minimização (LGPD; foto de rosto pode ser dado biométrico), um bucket privado só do dono e a exclusão da foto junto com o paciente.
+
 ## Modelo de dados proposto
 
 ### `patients`

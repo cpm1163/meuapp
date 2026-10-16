@@ -70,6 +70,14 @@ Deno.serve(async req => {
         .update({failure_detail: outcome.detail}).eq('id', analysis.id).eq('status', 'failed');
       if (detailError) log('analysis_detail_error', {analysis_id: analysis.id, code: detailError.code});
     }
+    // Usage record (analysis_usage) survives the deletion of the document; the log below keeps the same numbers.
+    if (outcome.usage) {
+      const {error: usageError} = await service.rpc('record_analysis_usage', {
+        analysis_id: analysis.id, model: outcome.model,
+        input_tokens: outcome.usage.input_tokens ?? null, output_tokens: outcome.usage.output_tokens ?? null,
+      });
+      if (usageError) log('analysis_usage_error', {analysis_id: analysis.id, code: usageError.code});
+    }
     log('analysis_collected', {
       analysis_id: analysis.id, batch_id: batchId, status: outcome.status, model: outcome.model,
       reason: outcome.status === 'failed' ? outcome.reason : null,

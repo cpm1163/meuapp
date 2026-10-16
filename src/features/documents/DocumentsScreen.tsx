@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, AppState, FlatList, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createPatientService, patientError, type PatientListItem } from '@/features/patients/service';
 import { createDocumentService, documentError, PAGE_SIZE, type DocumentRecord, type DocumentScope, type DocumentShare } from './service';
@@ -18,6 +18,9 @@ const emptyTexts: Record<DocumentScope, string> = {
 const statuses: Record<DocumentRecord['status'], string> = {
   pending_upload: 'Envio pendente', uploaded: 'Arquivo disponível', processing: 'Processando',
   ready: 'Pronto', failed: 'Processamento falhou', deleting: 'Exclusão pendente',
+};
+const analysisStatuses: Record<DocumentRecord['analyses'][number]['status'], string> = {
+  processing: 'Análise em andamento', ready: 'Análise pronta', failed: 'Análise falhou',
 };
 
 function Action({ title, onPress, disabled = false, danger = false }: { title: string; onPress: () => void; disabled?: boolean; danger?: boolean }) {
@@ -80,6 +83,13 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
     });
     return () => { active = false; listener.remove(); };
   }, [refresh, service, userId, scope, patientId]);
+
+  // Reloads when returning from the analysis screen, where the analysis status may have changed.
+  // The first focus is skipped: the effect above already loads the list.
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current) void refresh(); else focusedOnce.current = true;
+  }, [refresh]));
 
   // Display only: the database decides who may link documents to patients.
   useEffect(() => {
@@ -151,13 +161,13 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
   }
 
   // Linking needs the module; unlinking is always allowed (docs/exam-comparison.md).
-  function linkPatient(patient: { id: string; display_name: string } | null) {
+  function linkPatient(patient: Pick<PatientListItem, 'id' | 'display_name' | 'birth_date' | 'sex'> | null) {
     void run(async () => {
       if (!selected) return;
       try { await patients.setDocumentPatient(selected.id, patient?.id ?? null); }
       catch (e) { if (mounted.current) setError(patientError(e)); return; }
       if (mounted.current) {
-        setSelected({ ...selected, patient_id: patient?.id ?? null, patient: patient ? { display_name: patient.display_name } : null });
+        setSelected({ ...selected, patient_id: patient?.id ?? null, patient: patient ? { display_name: patient.display_name, birth_date: patient.birth_date, sex: patient.sex } : null });
         setPatientResults(null); setPatientSearch('');
       }
     });
@@ -192,6 +202,9 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
         <Text style={styles.documentName}>{item.name}</Text>
         {!patientId && !!item.patient && <Text style={styles.hint}>Paciente: {item.patient.display_name}</Text>}
         <Text style={styles.hint}>{statuses[item.status]}{item.size_bytes ? ` · ${(item.size_bytes / 1024 / 1024).toFixed(1)} MB` : ''}</Text>
+        {item.owner_id === userId && ['uploaded', 'processing', 'ready', 'failed'].includes(item.status) &&
+          <Text style={[styles.hint, item.analyses[0]?.status === 'failed' && styles.danger]}>
+            {item.analyses[0] ? analysisStatuses[item.analyses[0].status] : 'Sem análise'}</Text>}
         <View style={styles.actions}>
           {!['pending_upload', 'deleting'].includes(item.status) && <Action title="Abrir arquivo" disabled={busy} onPress={() => void run(async () => {
             const url = await service.open(item);
