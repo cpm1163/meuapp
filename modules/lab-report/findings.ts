@@ -90,6 +90,9 @@ type Bounds = {low: number | null; low_inclusive: boolean; high: number | null; 
 export const normalizeText = (text: string) =>
   text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9%/^.]+/g, ' ').trim();
 
+// On normalized text: "amarelo claro ao amarelo", "limpido a ligeiramente turva", "ausente ate raros".
+const QUALITATIVE_RANGE = /^(.+?) (a|ao|ate) (.+)$/;
+
 function compareNumber(value: number, bounds: Bounds): 'within' | 'below' | 'above' {
   const {low, high} = bounds;
   if (low !== null && (bounds.low_inclusive ? value < low : value <= low)) return 'below';
@@ -113,8 +116,15 @@ function compareValue(value: number | null, text: string, kind: Parameter['value
   if (reference.kind === 'table_by_clinical_category') return {status: 'table_check', reason: 'clinical_category'};
   if (reference.kind === 'qualitative') {
     if (reference.expected.length === 0) return {status: 'unverifiable', reason: 'reference_not_parsed'};
+    const value = normalizeText(text);
     const expected = reference.expected.map(normalizeText);
-    return {status: expected.includes(normalizeText(text)) ? 'within' : 'not_expected'};
+    if (expected.includes(value)) return {status: 'within'};
+    // A printed range of words ("Límpido a Ligeiramente Turva"): its two ends are expected values; anything else
+    // may lie between them, but the code does not know the order of the scale (first real report, 16/10/2026).
+    const ranges = expected.map(item => QUALITATIVE_RANGE.exec(item)).filter(match => match !== null);
+    if (ranges.some(match => match[1] === value || match[3] === value)) return {status: 'within'};
+    if (ranges.length > 0) return {status: 'unverifiable', reason: 'qualitative_range'};
+    return {status: 'not_expected'};
   }
   if (kind !== 'numeric' || value === null) return {status: 'unverifiable', reason: 'value_not_read'};
   if (reference.kind === 'table_by_demographics') {
@@ -133,6 +143,13 @@ function compareValue(value: number | null, text: string, kind: Parameter['value
     high: needsHigh ? reference.high : null, high_inclusive: reference.high_inclusive,
   };
   return {status: compareNumber(value, bounds), bounds};
+}
+
+export type ParameterStatus = Comparison['status'];
+/** Same comparison the findings use, for the full results table of the report. */
+export function classifyParameter(parameter: Parameter, sex: Sex, age: number | null): {status: ParameterStatus; row: string | null} {
+  const result = compareValue(parameter.value_number, parameter.value_text, parameter.value_kind, parameter.reference, sex, age);
+  return {status: result.status, row: 'row' in result ? result.row ?? null : null};
 }
 
 function latest(history: HistoryEntry[]): HistoryEntry | null {

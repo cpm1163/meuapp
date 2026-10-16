@@ -131,6 +131,28 @@ test('fictitious report produces exactly the expected findings', () => {
   ]);
 });
 
+test('a qualitative reference printed as a range of words accepts its ends and never accuses the values between', () => {
+  // Same shape as the first real report (16/10/2026): the AI keeps "X a Y" as a single expected value.
+  const qualitative = (report, value, expected, labFlag = 'none') => Object.assign(param(report, 'Proteínas'), {
+    value_text: value, lab_flag: labFlag, reference: {...param(report, 'Proteínas').reference, text: expected[0], expected},
+  });
+  const atEnd = fixture();
+  qualitative(atEnd, 'Ligeiramente Turva', ['Límpido a Ligeiramente Turva'], 'within');
+  assert.deepEqual(pick(generateFindings(atEnd), 'out_of_reference', 'Proteínas'), []);
+  assert.deepEqual(pick(generateFindings(atEnd), 'lab_flag_divergence', 'Proteínas'), [], 'agrees with the lab flag');
+  const firstEnd = fixture();
+  qualitative(firstEnd, 'Amarelo Claro', ['Amarelo Claro ao Amarelo']);
+  assert.deepEqual(pick(generateFindings(firstEnd), 'out_of_reference', 'Proteínas'), []);
+  const between = fixture();
+  qualitative(between, 'Amarelo', ['Amarelo Claro a Amarelo Escuro']);
+  const findings = generateFindings(between);
+  assert.deepEqual(pick(findings, 'out_of_reference', 'Proteínas'), []);
+  assert.equal(pick(findings, 'unverifiable', 'Proteínas')[0].reason, 'qualitative_range');
+  const outside = fixture();
+  qualitative(outside, 'Positivo', ['Negativo']);
+  assert.equal(pick(generateFindings(outside), 'out_of_reference', 'Proteínas')[0].reason, 'not_expected_value');
+});
+
 test('findings follow the display order and carry page, reference and previous value', () => {
   const findings = generateFindings(fixture());
   const order = findings.map(item => FINDING_ORDER.indexOf(item.kind));

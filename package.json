@@ -16,6 +16,7 @@
     "expo-linking": "~57.0.11",
     "expo-print": "~57.0.2",
     "expo-router": "~57.0.23",
+    "expo-sharing": "~57.0.23",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
@@ -42,7 +43,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --test tests/auth.test.cjs tests/documents.test.cjs tests/lab-report.test.cjs tests/analyses.test.cjs",
+    "test": "node --test tests/auth.test.cjs tests/documents.test.cjs tests/lab-report.test.cjs tests/analyses.test.cjs tests/report.test.cjs",
     "test:db": "supabase test db"
   },
   "private": true

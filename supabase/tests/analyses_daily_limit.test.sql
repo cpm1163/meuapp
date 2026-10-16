@@ -67,10 +67,10 @@ select is((select next_available_at from public.get_analysis_quota()),null,'no d
 select lives_ok($$select public.start_document_analysis('80000000-0000-0000-0000-000000000003','lab-report')$$,
   'other user is not affected by the limit of A');
 
--- When the oldest counted analysis leaves the window, one more start is allowed
+-- When the oldest counted analysis leaves the window, one more start is allowed (the limit counts analysis_usage)
 reset role;
-update public.document_analyses set created_at = now() - interval '25 hours', completed_at = now() - interval '25 hours'
- where id = (select id from public.document_analyses
+update public.analysis_usage set created_at = now() - interval '25 hours'
+ where analysis_id = (select analysis_id from public.analysis_usage
   where requested_by='70000000-0000-0000-0000-00000000000a' and created_at > now() - interval '24 hours'
   order by created_at limit 1);
 set local role authenticated;

@@ -11,7 +11,9 @@ export type DocumentRecord = {
   created_at: string;
   patient_id: string | null;
   // Null for documents shared by another doctor: their patient records are never visible.
-  patient: { display_name: string } | null;
+  patient: { display_name: string; birth_date: string | null; sex: 'female' | 'male' | null } | null;
+  // Latest analysis only (at most one row), as visible to this user under the analyses RLS.
+  analyses: { status: 'processing' | 'ready' | 'failed'; created_at: string }[];
 };
 // 'unassigned' = own documents without a patient; 'patient' = own documents of patientId.
 export type DocumentScope = 'mine' | 'shared' | 'unassigned' | 'patient';
@@ -19,6 +21,7 @@ export type DocumentShare = { user_id: string; email: string; created_at: string
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 export const PAGE_SIZE = 20;
+const DOCUMENT_SELECT = '*, patient:patients(display_name, birth_date, sex), analyses:document_analyses(status, created_at)';
 
 // Each operation stays bound to the session that initiated it, even during account switches.
 export function createDocumentService(accessToken: string) {
@@ -31,7 +34,8 @@ export function createDocumentService(accessToken: string) {
 
   return {
     async list(userId: string, scope: DocumentScope, offset = 0, patientId?: string) {
-      let query = client.from('documents').select('*, patient:patients(display_name)').order('created_at', { ascending: false }).order('id');
+      let query = client.from('documents').select(DOCUMENT_SELECT).order('created_at', { ascending: false }).order('id')
+        .order('created_at', { referencedTable: 'analyses', ascending: false }).limit(1, { referencedTable: 'analyses' });
       query = scope === 'shared' ? query.neq('owner_id', userId) : query.eq('owner_id', userId);
       if (scope === 'unassigned') query = query.is('patient_id', null);
       if (scope === 'patient') query = query.eq('patient_id', patientId ?? '');
@@ -40,7 +44,8 @@ export function createDocumentService(accessToken: string) {
       return data as DocumentRecord[];
     },
     async get(id: string) {
-      const { data, error } = await client.from('documents').select('*, patient:patients(display_name)').eq('id', id).maybeSingle();
+      const { data, error } = await client.from('documents').select(DOCUMENT_SELECT).eq('id', id)
+        .order('created_at', { referencedTable: 'analyses', ascending: false }).limit(1, { referencedTable: 'analyses' }).maybeSingle();
       if (error) throw error;
       return data as DocumentRecord | null;
     },

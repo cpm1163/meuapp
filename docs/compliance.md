@@ -14,7 +14,7 @@ Planejamento iniciado em 02/10/2026. Implementação iniciada em 05/10/2026: tab
 | 2 — Amostras | PDF de laudo completo recebido e analisado em 02/10/2026 (ver [Amostra 1](#amostra-1--laudo-completo-em-pdf)). Foto pendente. |
 | 3 — Modelo de dados e RLS | Migração `20261005000100_document_analyses.sql` aplicada no Supabase local e, depois de `--dry-run` que listou apenas ela, no **remoto** em 05/10/2026; `migration list` conferido. 45/45 asserções pgTAP (`supabase/tests/analyses_rls.test.sql`), 148/148 no total. |
 | 4 — Função de análise | Proposta neste documento. Modelo de IA decidido. |
-| 5 — Pontos de atenção | Implementados em `modules/lab-report/findings.ts` em 05/10/2026, com esquema de extração (`extraction.schema.json`) e testes sobre laudo fictício (`tests/lab-report.test.cjs`). Tolerâncias do hemograma provisórias, a calibrar. Esquema `lab-report/2` (laudo misto) em 08/10/2026, com 19 testes. |
+| 5 — Pontos de atenção | Implementados em `modules/lab-report/findings.ts` em 05/10/2026, com esquema de extração (`extraction.schema.json`) e testes sobre laudo fictício (`tests/lab-report.test.cjs`). Tolerâncias do hemograma provisórias, a calibrar. Esquema `lab-report/2` (laudo misto) em 08/10/2026, com 19 testes. Correção de 16/10/2026 (primeiro laudo de sangue real): referência qualitativa impressa como faixa de palavras ("Límpido a Ligeiramente Turva", "Amarelo Claro ao Amarelo") era comparada como um valor único e acusava "diferente do esperado"; agora as pontas da faixa contam como dentro e um valor intermediário fica "não comparado" (`qualitative_range`), porque o código não conhece a ordem da escala. |
 | 6 — Interface | Primeira versão em 08/10/2026: botão "Análise" no documento, tela `src/app/analysis.tsx` com confirmação de envio, limite diário restante, espera pelo lote (verificação a cada minuto) e resultado agrupado por tipo de ponto de atenção, com o aviso fixo e o botão para abrir o laudo original. Textos em `src/features/analyses/findings-text.ts`, com 4 testes. Módulo `lab-report` em `testing` no remoto desde 08/10/2026 (migração `20261008000300`). Falta validar no Android com o laudo real. |
 
 As fases anteriores estão em [authentication.md](authentication.md) (FASE 0), [grants.md](grants.md) (FASE 01) e [profiles.md](profiles.md) (FASE 02).
@@ -363,7 +363,12 @@ Decidido em 08/10/2026. A API de IA cobra só por uso, sem custo com o app parad
 - **Teto por chamada:** `max_tokens` fixo e arquivo de no máximo 10 MB.
 - **Sem nova tentativa automática.** Se a chamada falhar, a análise termina em `failed` e só recomeça se o médico pedir. As novas tentativas automáticas da SDK ficam desligadas ou limitadas a uma.
 - **Crédito pré-pago no Console da Anthropic, sem recarga automática**, e com limite mensal de gasto. Isso fica fora do código, mas é a trava final: sem saldo, as chamadas param, sem gerar dívida.
-- **Registro de consumo:** os tokens de cada análise ficam gravados no log, como já previsto, para comparar o custo real com a estimativa.
+- **Registro de consumo** (`analysis_usage`, decidido em 16/10/2026; migração `20261016000100_analysis_usage.sql`, 17 testes pgTAP em `supabase/tests/analysis_usage.test.sql`, 238 no total; aplicada no local e, depois de `--dry-run` que listou apenas ela, no **remoto** em 16/10/2026, com `migration list` conferido e `collect-analyses` publicada na versão 4):
+  - Uma linha por análise, só com números: quem pediu, quando, módulo, modelo, tokens de entrada e de saída. **Sem vínculo com o documento**, para sobreviver à exclusão dele (antes, excluir o documento apagava as análises e, com elas, o histórico de consumo).
+  - Criada por gatilho no início de cada análise. Os tokens são gravados uma única vez por `collect-analyses` (`record_analysis_usage`, só o servidor), também nas falhas que a IA chegou a processar. O log continua registrando os mesmos números.
+  - **O limite diário passa a contar por ela.** Isso fecha a brecha de 16/10/2026: como o limite contava as análises existentes, excluir o documento liberava vagas no dia.
+  - Cada usuário lê só o próprio consumo; ninguém grava pelo app. As análises que já existiam foram copiadas sem tokens (o consumo delas está só no log e no Console).
+  - Custo de cada análise = tokens × preço do modelo, com 50% de desconto do processamento em lote. O consumo exato e o saldo continuam no Console da Anthropic (workspace `exames-ia`).
 
 ### Conferência com a camada de texto do PDF (proposta)
 
