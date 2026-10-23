@@ -6,12 +6,15 @@
     "Afirmações curadas para as considerações clínicas do tipo 2 (divergência de referência). Ver docs/clinical-considerations.md.",
     "Idade em meses, intervalo [age_min_months, age_max_months): o mínimo entra e o máximo não. null = sem limite.",
     "Classes: min/max na unidade da fonte; *_inclusive diz se o limite entra. Valor fora de todas as classes = sem classificação.",
+    "caveats: avisos que a consideração mostra junto do resultado. short e reference: nome curto no texto e referência completa na bibliografia.",
     "fasting: 'fasting' (em jejum), 'non_fasting' (sem jejum) ou 'any' (não depende do jejum). Se o laudo não informar o jejum, só valem as afirmações 'any'.",
     "parameter_code: código do parâmetro na extração. Só o hemograma já tem códigos; os demais são propostos aqui e ainda precisam entrar nas skills."
   ],
   "sources": [
     {
       "id": "sbp-2020-dislipidemia",
+      "short": "SBP 2020",
+      "reference": "Sociedade Brasileira de Pediatria, Departamento Científico de Endocrinologia. Dislipidemia na criança e no adolescente - Orientações para o pediatra. Guia Prático de Atualização nº 8, maio de 2020.",
       "publisher": "Sociedade Brasileira de Pediatria, Departamento Científico de Endocrinologia",
       "title": "Dislipidemia na criança e no adolescente - Orientações para o pediatra",
       "kind": "Guia Prático de Atualização nº 8",
@@ -22,6 +25,8 @@
     },
     {
       "id": "sbc-2025-dislipidemias",
+      "short": "SBC 2025",
+      "reference": "Rached FH, et al. Diretriz Brasileira de Dislipidemias e Prevenção da Aterosclerose – 2025. Arq Bras Cardiol. 2025;122(9):e20250640. doi:10.36660/abc.20250640.",
       "publisher": "Sociedade Brasileira de Cardiologia",
       "title": "Diretriz Brasileira de Dislipidemias e Prevenção da Aterosclerose – 2025",
       "kind": "Diretriz",
@@ -33,6 +38,8 @@
     },
     {
       "id": "sbp-2024-hipovitaminose-d",
+      "short": "SBP 2024",
+      "reference": "Sociedade Brasileira de Pediatria, Departamento Científico de Endocrinologia. Hipovitaminose D em pediatria: diagnóstico, tratamento e prevenção – Atualização. Documento Científico nº 181, 25 de novembro de 2024.",
       "publisher": "Sociedade Brasileira de Pediatria, Departamento Científico de Endocrinologia",
       "title": "Hipovitaminose D em pediatria: diagnóstico, tratamento e prevenção – Atualização",
       "kind": "Documento Científico nº 181",
@@ -42,6 +49,8 @@
     },
     {
       "id": "who-2024-haemoglobin",
+      "short": "OMS 2024",
+      "reference": "World Health Organization. Guideline on haemoglobin cutoffs to define anaemia in individuals and populations. Geneva: World Health Organization; 2024.",
       "publisher": "World Health Organization",
       "title": "Guideline on haemoglobin cutoffs to define anaemia in individuals and populations",
       "kind": "Guideline",
@@ -293,6 +302,7 @@
     },
     {
       "id": "who2024-hb-6a23m",
+      "caveats": ["Corte ao nível do mar, sem ajuste para altitude nem tabagismo, que o laudo não informa."],
       "source": "who-2024-haemoglobin",
       "parameter_code": "hemoglobin",
       "parameter": "Hemoglobina",
@@ -309,6 +319,7 @@
     },
     {
       "id": "who2024-hb-24a59m",
+      "caveats": ["Corte ao nível do mar, sem ajuste para altitude nem tabagismo, que o laudo não informa."],
       "source": "who-2024-haemoglobin",
       "parameter_code": "hemoglobin",
       "parameter": "Hemoglobina",
@@ -324,6 +335,7 @@
     },
     {
       "id": "who2024-hb-5a11a",
+      "caveats": ["Corte ao nível do mar, sem ajuste para altitude nem tabagismo, que o laudo não informa."],
       "source": "who-2024-haemoglobin",
       "parameter_code": "hemoglobin",
       "parameter": "Hemoglobina",
@@ -339,6 +351,7 @@
     },
     {
       "id": "who2024-hb-12a14a",
+      "caveats": ["Corte ao nível do mar, sem ajuste para altitude nem tabagismo, que o laudo não informa.", "Para mulheres, vale para não gestantes; o laudo não informa gestação."],
       "source": "who-2024-haemoglobin",
       "parameter_code": "hemoglobin",
       "parameter": "Hemoglobina",
@@ -355,6 +368,7 @@
     },
     {
       "id": "who2024-hb-15a65-f",
+      "caveats": ["Corte ao nível do mar, sem ajuste para altitude nem tabagismo, que o laudo não informa.", "Para mulheres, vale para não gestantes; o laudo não informa gestação."],
       "source": "who-2024-haemoglobin",
       "parameter_code": "hemoglobin",
       "parameter": "Hemoglobina",
@@ -371,6 +385,7 @@
     },
     {
       "id": "who2024-hb-15a65-m",
+      "caveats": ["Corte ao nível do mar, sem ajuste para altitude nem tabagismo, que o laudo não informa."],
       "source": "who-2024-haemoglobin",
       "parameter_code": "hemoglobin",
       "parameter": "Hemoglobina",

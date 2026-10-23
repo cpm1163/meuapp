@@ -1,6 +1,8 @@
 import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import type { ConsiderationsResult } from '../../../modules/clinical-considerations/considerations';
+import type { Theme } from '../../../modules/clinical-considerations/grouping';
 import { reportHtml, type Report } from './report';
 
 // The report PDF leaves the app through the system share sheet (e.g. WhatsApp), decided 16/10/2026.
@@ -9,11 +11,12 @@ const PAGE = { width: 595, height: 842 };
 const PREFIX = 'Relatorio-exame-';
 
 /** Prints the report and opens the share sheet. `fileDate` (AAAA-MM-DD) names the file the recipient sees. */
-export async function shareReportPdf(report: Report, fileDate: string) {
+export async function shareReportPdf(report: Report, fileDate: string, considerations: ConsiderationsResult | null = null,
+  themes: Theme[] | null = null) {
   if (!(await Sharing.isAvailableAsync())) throw new Error('Este aparelho não permite compartilhar arquivos.');
   // The share sheet may still be reading the previous file when shareAsync returns, so it is removed only here.
   clearPreviousReports();
-  const { uri } = await Print.printToFileAsync({ html: reportHtml(report, new Date()), ...PAGE });
+  const { uri } = await Print.printToFileAsync({ html: reportHtml(report, new Date(), considerations, themes), ...PAGE });
   let target = uri;
   try {
     // A readable name instead of the random one from expo-print. Expo Go denies FileSystem reads of the print

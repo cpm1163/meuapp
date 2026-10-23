@@ -1,4 +1,6 @@
-import { classifyParameter, generateFindings, type Extraction, type Finding, type ParameterStatus, type Sex } from '../../../modules/lab-report/findings';
+import { classifyParameter, generateFindings, normalizeText, type Extraction, type Finding, type ParameterStatus, type Sex } from '../../../modules/lab-report/findings';
+import { CONSIDERATIONS_DISCLAIMER, type ConsiderationsResult } from '../../../modules/clinical-considerations/considerations';
+import { themeLines, THEMES_NOTE, type Theme } from '../../../modules/clinical-considerations/grouping';
 import { DISCLAIMER, findingDetails, findingTitle, groupFindings, reasonText } from './findings-text';
 
 // Full report of one analysis (decided 16/10/2026, docs/exam-comparison.md): every parameter by exam, classified in
@@ -133,11 +135,84 @@ export function buildReport(extraction: Extraction, storedFindings: Finding[], r
   };
 }
 
+/**
+ * Search on the report screen: every word of the query must appear in the parameter or exam name, ignoring accents
+ * and case, or name a group of exams (SEARCH_GROUPS). An exam whose name matches keeps all its rows. `index` is the exam's position in the full report.
+ */
+// Group words that never appear in printed names ("lipídios" finds "Colesterol Total"). Navigation only: a group
+// lists where to look, it never classifies a result. Keys are prefixes of the normalized word.
+const SEARCH_GROUPS: [string, string[]][] = [
+  ['lipid', ['colesterol', 'hdl', 'ldl', 'triglicer', 'lipoprot', 'apolipo']],
+  ['tireo', ['tsh', 't4', 't3', 'tireo', 'tiroxina', 'triiodotironina']],
+  ['tiroid', ['tsh', 't4', 't3', 'tireo', 'tiroxina', 'triiodotironina']],
+  ['hepat', ['tgo', 'tgp', 'ast', 'alt', 'transaminase', 'gama', 'ggt', 'bilirrubina', 'fosfatase', 'albumina']],
+  ['figado', ['tgo', 'tgp', 'ast', 'alt', 'transaminase', 'gama', 'ggt', 'bilirrubina', 'fosfatase', 'albumina']],
+  ['renal', ['creatinina', 'ureia', 'filtracao', 'tfg', 'albumina/creatinina']],
+  ['rim', ['creatinina', 'ureia', 'filtracao', 'tfg', 'albumina/creatinina']],
+  ['glicem', ['glicose', 'glicada', 'hba1c', 'insulina', 'homa']],
+  ['diabet', ['glicose', 'glicada', 'hba1c', 'insulina', 'homa']],
+];
+// Words that only describe the group ("perfil lipídico", "função renal", "exame de tireoide").
+const SEARCH_FILLERS = new Set(['perfil', 'funcao', 'exame', 'exames', 'de', 'da', 'do', 'das', 'dos']);
+
+/** Matcher for a search query, or null when the query has no words. */
+function queryMatcher(query: string): ((text: string) => boolean) | null {
+  const all = normalizeText(query).split(' ').filter(Boolean);
+  const words = all.some(word => !SEARCH_FILLERS.has(word)) ? all.filter(word => !SEARCH_FILLERS.has(word)) : all;
+  if (words.length === 0) return null;
+  const wordMatches = (normalized: string, word: string) => normalized.includes(word)
+    || SEARCH_GROUPS.some(([prefix, terms]) => word.startsWith(prefix) && terms.some(term => normalized.includes(term)));
+  return text => { const normalized = normalizeText(text); return words.every(word => wordMatches(normalized, word)); };
+}
+
+export function searchExams(exams: ReportExam[], query: string): { exam: ReportExam; index: number }[] {
+  const matches = queryMatcher(query);
+  if (!matches) return exams.map((exam, index) => ({ exam, index }));
+  return exams.flatMap((exam, index) => {
+    if (matches(exam.name)) return [{ exam, index }];
+    const rows = exam.rows.filter(row => matches(`${row.name} ${exam.name}`));
+    return rows.length ? [{ exam: { ...exam, rows }, index }] : [];
+  });
+}
+
+// The section is searched like a parameter name: each word may appear anywhere in it (like %word%).
+const SECTION_NAME = 'Considerações clínicas Referências bibliográficas bibliografia diretrizes';
+
+/**
+ * The considerations that match a search: the whole section when the query names it ("considerações",
+ * "referências"), otherwise only the items of matching parameters, with the references they cite. Null if none.
+ */
+export function searchConsiderations(considerations: ConsiderationsResult, query: string): ConsiderationsResult | null {
+  const matches = queryMatcher(query);
+  if (!matches || matches(SECTION_NAME)) return considerations;
+  const items = considerations.items.filter(item => matches(`${item.title} ${item.exam_name}`));
+  const notCompared = considerations.notCompared.filter(item => matches(item.title));
+  if (items.length === 0 && notCompared.length === 0) return null;
+  const cited = new Set(items.flatMap(item => item.lines.map(line => line.reference)));
+  return { items, notCompared, references: considerations.references.filter(item => cited.has(item.number)) };
+}
+
 const escape = (text: string) => text.replace(/[&<>"']/g, char =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string);
 
 /** HTML for expo-print. Everything is escaped: the texts come from the AI transcription. */
-export function reportHtml(report: Report, generatedAt: Date): string {
+/** Level B section, only when the account has the considerations module (see considerations.ts). */
+function considerationsHtml(considerations: ConsiderationsResult, themes: Theme[] | null): string {
+  const byTheme = themes?.length ? `<h3>Por tema</h3><p class="muted">${escape(THEMES_NOTE)}</p>${
+    themes.map(theme => `<p><b>${escape(theme.title)}</b><br/>${themeLines(theme).map(escape).join('<br/>')}</p>`).join('')}` : '';
+  const items = considerations.items.map(item => `<h3>${escape(item.title)}</h3>${
+    item.lines.map(line => `<p>${escape(line.text)} [${line.reference}]</p>`).join('')}${
+    item.caveats.map(caveat => `<p class="muted">${escape(caveat)}</p>`).join('')}`).join('');
+  const notCompared = considerations.notCompared.length ? `<p class="muted"><b>Sem comparação:</b> ${
+    considerations.notCompared.map(item => `${escape(item.title)} (${escape(item.reason)})`).join(' · ')}</p>` : '';
+  const references = considerations.references.length ? `<h3>Referências bibliográficas</h3><ol>${
+    considerations.references.map(item => `<li>${escape(item.text)}</li>`).join('')}</ol>` : '';
+  return `<h2>Considerações clínicas</h2><div class="box">${escape(CONSIDERATIONS_DISCLAIMER)}</div>${byTheme}<h3>Comparação com diretrizes</h3>${
+    items || '<p>Nenhum parâmetro deste laudo tem diretriz selecionada para comparação.</p>'}${notCompared}${references}`;
+}
+
+export function reportHtml(report: Report, generatedAt: Date, considerations: ConsiderationsResult | null = null,
+  themes: Theme[] | null = null): string {
   const highlights = groupFindings(report.highlights).map(group => `<h3>${escape(group.title)} (${group.items.length})</h3><ul>${
     group.items.map(item => `<li><b>${escape(findingTitle(item))}</b> — ${escape(reasonText(item))}${
       findingDetails(item).map(line => `<br/><span class="muted">${escape(line)}</span>`).join('')}</li>`).join('')}</ul>`).join('');
@@ -168,7 +243,7 @@ export function reportHtml(report: Report, generatedAt: Date): string {
       report.collectedAt ? escape(formatDate(report.collectedAt)) : 'data não impressa'}<br/>Paciente: ${escape(sexAgeText(report))}${source}</p>
     <div class="box">${escape(DISCLAIMER)} Transcrição automática por IA e comparação por regras do app; não é laudo nem diagnóstico.</div>
     <h2>Pontos de atenção</h2>${highlights || '<p>Nenhum ponto de atenção encontrado.</p>'}
-    ${exams}${others}
+    ${exams}${considerations ? considerationsHtml(considerations, themes) : ''}${others}
     <p class="muted">Gerado em ${escape(generatedAt.toLocaleString('pt-BR'))}. Sem identificação do paciente.</p>
   </body></html>`;
 }

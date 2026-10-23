@@ -20,6 +20,8 @@ const load = file => {
 };
 const {compareWithStatements, checkStatements, ageFromYears, ageFromBirthDate, fastingState} = load('modules/clinical-considerations/compare.ts');
 const curated = JSON.parse(fs.readFileSync('modules/clinical-considerations/curated-statements.json', 'utf8'));
+const {buildConsiderations} = load('modules/clinical-considerations/considerations.ts');
+const grouping = load('modules/clinical-considerations/grouping.ts');
 
 const parameter = (code, value, unit, name = code) => ({
   name, code, value_kind: 'numeric', value_number: value, value_text: value === null ? '' : String(value), unit,
@@ -149,3 +151,114 @@ test('structural check catches overlapping classes, unknown sources and units', 
   assert.ok(errors.some(item => item.includes('unit mmol/L has no conversions')));
   assert.ok(errors.some(item => item.includes('duplicate id')));
 });
+
+test('fasting state does not matter when both statements give the same class', () => {
+  const adult = one(patient('male', 63), parameter('triglycerides', 129, 'mg/dL'));
+  assert.equal(adult.class_label, 'Desejável');
+  assert.equal(adult.statement_id, 'sbc2025-tg-adulto-jejum');
+  assert.equal(adult.also_statement_id, 'sbc2025-tg-adulto-sem-jejum');
+  // 160 is above the fasting limit (150) and below the non-fasting one (175): unknown fasting stays unclassified.
+  assert.equal(one(patient('male', 63), parameter('triglycerides', 160, 'mg/dL')).reason, 'fasting_unknown');
+  assert.equal(one(patient('female', 8), parameter('triglycerides', 70, 'mg/dL')).class_label, 'Aceitável');
+});
+
+test('considerations: one item per parameter, sentences with source, bounds and numbered references', () => {
+  const comparisons = run(patient('male', 63), parameter('total_cholesterol', 261, 'mg/dL', 'Colesterol Total'),
+    parameter('hdl_c', 50, 'mg/dL', 'HDL - Colesterol'), parameter('triglycerides', 129, 'mg/dL', 'Triglicérides'),
+    parameter('ldl_c', 185, 'mg/dL', 'LDL - Colesterol'), parameter('hemoglobin', 15.9, 'g/dL', 'Hemoglobina'));
+  const result = buildConsiderations(comparisons, curated);
+  assert.deepEqual(result.items.map(item => [item.title, item.lines.map(line => `${line.text} [${line.reference}]`)]), [
+    ['Colesterol Total', ['261 mg/dL: acima do valor referencial (≥ 190 mg/dL) pela SBC 2025. [1]']],
+    ['HDL - Colesterol', ['50 mg/dL: desejável (> 40 mg/dL) pela SBC 2025. [1]']],
+    ['Triglicérides', ['129 mg/dL: desejável (< 150 mg/dL) pela SBC 2025, com ou sem jejum. [1]']],
+    ['Hemoglobina', ['15,9 g/dL (159 g/L): no corte da OMS ou acima (≥ 130 g/L) pela OMS 2024. [2]']],
+  ]);
+  assert.deepEqual(result.items[3].caveats, ['Corte ao nível do mar, sem ajuste para altitude nem tabagismo, que o laudo não informa.']);
+  assert.deepEqual(result.notCompared, [{title: 'LDL - Colesterol', reason: 'sem diretriz selecionada para esta idade e sexo'}]);
+  assert.equal(result.references.length, 2);
+  assert.match(result.references[0].text, /^Rached FH, et al\. Diretriz Brasileira de Dislipidemias .* p\. 36\.$/);
+  assert.match(result.references[1].text, /^World Health Organization\. .* p\. 9\.$/);
+});
+
+test('considerations: two criteria for vitamin D and a value outside the printed ranges', () => {
+  const result = buildConsiderations(run(patient('female', 6), parameter('vitamin_d_25oh', 15.5, 'ng/mL', 'Vitamina D')), curated);
+  assert.deepEqual(result.items[0].lines.map(line => line.text), [
+    '15,5 ng/mL: fora das faixas impressas por este critério pela SBP 2024, critério American Academy of Pediatrics.',
+    '15,5 ng/mL: insuficiência (12 a 20 ng/mL) pela SBP 2024, critério Global Consensus on Prevention and Management of Nutritional Rickets.',
+  ]);
+  // Same source and page: one reference.
+  assert.deepEqual(result.items[0].lines.map(line => line.reference), [1, 1]);
+  assert.equal(result.references.length, 1);
+});
+
+test('considerations: nothing to compare gives no items', () => {
+  const result = buildConsiderations(run(patient(null, null), parameter('ldl_c', 120, 'mg/dL', 'LDL')), curated);
+  assert.deepEqual(result.items, []);
+  assert.deepEqual(result.notCompared, [{title: 'LDL', reason: 'idade não informada'}]);
+  assert.deepEqual(result.references, []);
+});
+
+const twoExams = () => {
+  const report = extraction({text: '', hours: null},
+    parameter('total_cholesterol', 261, 'mg/dL', 'Colesterol Total'), parameter('hdl_c', 50, 'mg/dL', 'HDL'));
+  report.exams.push({...report.exams[0], exam_name: 'Hemograma', parameters: [parameter('hemoglobin', 15.9, 'g/dL', 'Hemoglobina')]});
+  return report;
+};
+
+test('grouping: the AI receives only ids, exam names, parameter names and units', () => {
+  const params = grouping.buildGroupingParams(twoExams());
+  const sent = JSON.parse(params.messages[0].content);
+  assert.deepEqual(sent, [
+    {id: '0.0', exam: 'Exame fictício', parameter: 'Colesterol Total', unit: 'mg/dL'},
+    {id: '0.1', exam: 'Exame fictício', parameter: 'HDL', unit: 'mg/dL'},
+    {id: '1.0', exam: 'Hemograma', parameter: 'Hemoglobina', unit: 'g/dL'},
+  ]);
+  // No value, reference or demographics anywhere in the request.
+  const whole = JSON.stringify(params);
+  for (const forbidden of ['261', '15.9', 'value_text', 'reference', 'patient_sex', 'patient_age']) assert.ok(!whole.includes(forbidden), forbidden);
+  assert.equal(params.model, 'claude-opus-5-5');
+  assert.equal(params.output_config.format.type, 'json_schema');
+});
+
+test('grouping: the answer is checked against the extraction', () => {
+  const report = twoExams();
+  const answer = groups => JSON.stringify({groups});
+  assert.deepEqual(grouping.validateGroups(answer([
+    {title: 'Perfil lipídico', parameter_ids: ['0.0', '0.1', '0.1', '9.9']},
+    {title: 'Hemograma', parameter_ids: ['1.0', '0.0']},
+  ]), report), [
+    {title: 'Perfil lipídico', parameter_ids: ['0.0', '0.1']},
+    {title: 'Hemograma', parameter_ids: ['1.0']},
+  ], 'unknown and repeated ids are dropped');
+  // Interpretive titles lose their theme; parameters left out go to "Outros exames".
+  assert.deepEqual(grouping.validateGroups(answer([{title: 'Dislipidemia com risco aumentado', parameter_ids: ['0.0']},
+    {title: 'Hemograma normal', parameter_ids: ['1.0']}]), report),
+    [{title: 'Outros exames', parameter_ids: ['0.0', '1.0', '0.1']}]);
+  assert.deepEqual(grouping.validateGroups(answer([{title: 'x'.repeat(61), parameter_ids: ['0.0']}]), report),
+    [{title: 'Outros exames', parameter_ids: ['0.0', '0.1', '1.0']}]);
+  assert.equal(grouping.validateGroups('not json', report), null);
+  assert.equal(grouping.validateGroups(JSON.stringify({themes: []}), report), null);
+});
+
+test('grouping: themes are written in code from the report statuses', () => {
+  const rows = [
+    {id: '0.0', name: 'Colesterol Total', value: '261 mg/dL', status: 'above'},
+    {id: '0.1', name: 'HDL', value: '50 mg/dL', status: 'within'},
+    {id: '0.2', name: 'LDL', value: '185 mg/dL', status: 'table_check'},
+    {id: '0.3', name: 'Triglicérides', value: '129 mg/dL', status: 'within'},
+  ];
+  const themes = grouping.buildThemes([{title: 'Perfil lipídico', parameter_ids: ['0.0', '0.1', '0.2', '0.3', '7.7']},
+    {title: 'Vazio', parameter_ids: ['7.7']}], rows);
+  assert.deepEqual(themes, [{
+    title: 'Perfil lipídico',
+    outside: [{name: 'Colesterol Total', value: '261 mg/dL', status: 'above'}],
+    within: ['HDL', 'Triglicérides'],
+    unchecked: ['LDL'],
+  }]);
+  assert.deepEqual(grouping.themeLines(themes[0]), [
+    'Colesterol Total: 261 mg/dL, acima da referência impressa.',
+    'Dentro da referência impressa: HDL, Triglicérides.',
+    'Sem comparação automática: LDL.',
+  ]);
+});
+
