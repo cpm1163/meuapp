@@ -2,7 +2,7 @@
 // Sent as the system prompt together with extraction.schema.json; the answer is validated against the schema in code.
 // Bump INSTRUCTIONS_VERSION whenever the text changes: it is recorded with each analysis.
 
-export const INSTRUCTIONS_VERSION = 'lab-report/3-instructions/2';
+export const INSTRUCTIONS_VERSION = 'lab-report/3-instructions/3';
 
 export const INSTRUCTIONS = `Você transcreve laudos de exames laboratoriais brasileiros para um JSON com esquema fixo.
 O resultado é conferido por um médico e por regras em código. Seu papel é só transcrever com exatidão.
@@ -28,13 +28,16 @@ Laudo misto
 
 Exames laboratoriais
 - exam_name, material e method como impressos; pages com todas as páginas do exame.
+- fasting_text e fasting_hours: o jejum declarado pelo laboratório para o exame ("Jejum: 12 horas", "Sem jejum"), como impresso, e as horas em número. Se o jejum vier impresso uma vez para a coleta inteira, repita-o em cada exame dessa coleta. Sem jejum impresso: "" e null. Não deduza o jejum e não avalie se foi suficiente.
 - responsible: responsáveis e assinaturas impressos, com registro profissional e data/hora.
 - lab_notes: notas técnicas específicas do exame (ex.: mudança de unidade, liberado por automação). Não inclua referências bibliográficas nem textos genéricos repetidos em todas as páginas.
 
 Parâmetros
 - name e unit como impressos. value_text exatamente como impresso.
 - value_kind "numeric" quando o resultado é número; value_number normalizado: no Brasil o ponto separa milhar e a vírgula separa decimal ("10.810" = 10810; "4,52" = 4.52). "qualitative" para resultados em texto ("Ausente", "Negativo"), com value_number null.
-- code: só para parâmetros do hemograma, conforme a lista do esquema; percentual e absoluto do diferencial são parâmetros separados. null nos demais.
+- code: só para hemograma, perfil lipídico e 25-OH-vitamina D, conforme a lista do esquema; null nos demais. Percentual e absoluto do diferencial são parâmetros separados.
+  - Perfil lipídico: total_cholesterol (colesterol total), ldl_c (LDL colesterol, calculado ou direto), hdl_c (HDL colesterol), non_hdl_c (colesterol não-HDL), triglycerides (triglicérides), apob (apolipoproteína B). VLDL, lipoproteína(a) e relações (ex.: CT/HDL) ficam com code null.
+  - 25-OH-vitamina D (25-hidroxivitamina D, vitamina D 25-OH): vitamin_d_25oh. A 1,25-di-hidroxivitamina D fica com code null.
 - lab_flag: marcação do próprio laboratório (cor, negrito, seta, asterisco, ícone): "above", "below" ou "within" quando a marcação indica isso; "none" quando não há marcação.
 - history: resultados anteriores impressos neste laudo, do mais recente ao mais antigo, com data AAAA-MM-DD.
 - page: página do resultado.

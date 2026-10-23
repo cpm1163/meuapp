@@ -24,7 +24,7 @@ export type Parameter = {
   reference: Reference; lab_flag: LabFlag; history: HistoryEntry[]; page: number | null;
 };
 export type Exam = {
-  exam_name: string; pages: number[]; material: string; method: string;
+  exam_name: string; pages: number[]; material: string; method: string; fasting_text: string; fasting_hours: number | null;
   responsible: {name: string; registration: string; role: string; signed_at: string}[];
   lab_notes: string[]; parameters: Parameter[];
 };

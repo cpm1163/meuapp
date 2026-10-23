@@ -1,0 +1,410 @@
+{
+  "version": 1,
+  "curated_on": "2026-10-23",
+  "validation": "not_validated_by_physician",
+  "notes": [
+    "Afirmações curadas para as considerações clínicas do tipo 2 (divergência de referência). Ver docs/clinical-considerations.md.",
+    "Idade em meses, intervalo [age_min_months, age_max_months): o mínimo entra e o máximo não. null = sem limite.",
+    "Classes: min/max na unidade da fonte; *_inclusive diz se o limite entra. Valor fora de todas as classes = sem classificação.",
+    "fasting: 'fasting' (em jejum), 'non_fasting' (sem jejum) ou 'any' (não depende do jejum). Se o laudo não informar o jejum, só valem as afirmações 'any'.",
+    "parameter_code: código do parâmetro na extração. Só o hemograma já tem códigos; os demais são propostos aqui e ainda precisam entrar nas skills."
+  ],
+  "sources": [
+    {
+      "id": "sbp-2020-dislipidemia",
+      "publisher": "Sociedade Brasileira de Pediatria, Departamento Científico de Endocrinologia",
+      "title": "Dislipidemia na criança e no adolescente - Orientações para o pediatra",
+      "kind": "Guia Prático de Atualização nº 8",
+      "published": "2020-05",
+      "url": "https://www.sbp.com.br/fileadmin/user_upload/22336c-GPA_-_Dislipidemia_Crianca_e_Adoles.pdf",
+      "retrieved_on": "2026-10-23",
+      "why_this_version": "Documento pediátrico mais recente da SBP sobre o tema encontrado em 23/10/2026. A diretriz da SBC de 2025 não traz valores referenciais pediátricos (a Tabela 3.1 é de adultos > 20 anos)."
+    },
+    {
+      "id": "sbc-2025-dislipidemias",
+      "publisher": "Sociedade Brasileira de Cardiologia",
+      "title": "Diretriz Brasileira de Dislipidemias e Prevenção da Aterosclerose – 2025",
+      "kind": "Diretriz",
+      "citation": "Rached FH, et al. Arq Bras Cardiol. 2025;122(9):e20250640",
+      "published": "2025",
+      "doi": "10.36660/abc.20250640",
+      "url": "https://abccardiol.org/wp-content/uploads/articles_xml/0066-782X-abc-122-09-e20250640/0066-782X-abc-122-09-e20250640.x66747.pdf",
+      "retrieved_on": "2026-10-23"
+    },
+    {
+      "id": "sbp-2024-hipovitaminose-d",
+      "publisher": "Sociedade Brasileira de Pediatria, Departamento Científico de Endocrinologia",
+      "title": "Hipovitaminose D em pediatria: diagnóstico, tratamento e prevenção – Atualização",
+      "kind": "Documento Científico nº 181",
+      "published": "2024-11-25",
+      "url": "https://www.sbp.com.br/fileadmin/user_upload/sbp/2024/novembro/25/24540j-DC_HipovitD_diagn-tratam-prevenc_Atualiz.pdf",
+      "retrieved_on": "2026-10-23"
+    },
+    {
+      "id": "who-2024-haemoglobin",
+      "publisher": "World Health Organization",
+      "title": "Guideline on haemoglobin cutoffs to define anaemia in individuals and populations",
+      "kind": "Guideline",
+      "citation": "Guideline on haemoglobin cutoffs to define anaemia in individuals and populations. Geneva: World Health Organization; 2024. Licence: CC BY-NC-SA 3.0 IGO.",
+      "published": "2024",
+      "isbn": "978-92-4-008854-2",
+      "url": "https://www.who.int/publications/i/item/9789240088542",
+      "retrieved_on": "2026-10-23"
+    }
+  ],
+  "statements": [
+    {
+      "id": "sbp2020-ct-2a19",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "total_cholesterol",
+      "parameter": "Colesterol total",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 24, "age_max_months": 240, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Aceitável", "max": 170, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 170, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "Quadro 1. Valores de referência para o perfil lipídico (mg/dL) em indivíduos entre 2 e 19 anos, “em jejum” e “sem jejum” [...] Colesterol total < 170 < 170",
+      "curation_notes": "A fonte só define o nível aceitável; não há faixa limítrofe nem elevada. A frase do quadro sobre CT ≥ 230 mg/dL e hipercolesterolemia familiar não entra: é hipótese (tipo 3)."
+    },
+    {
+      "id": "sbp2020-ldl-2a19",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "ldl_c",
+      "parameter": "LDL colesterol",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 24, "age_max_months": 240, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Aceitável", "max": 110, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 110, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "LDL colesterol < 110 < 110"
+    },
+    {
+      "id": "sbp2020-hdl-2a19",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "hdl_c",
+      "parameter": "HDL colesterol",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 24, "age_max_months": 240, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Aceitável", "min": 45, "min_inclusive": false },
+        { "label": "Abaixo do nível aceitável", "max": 45, "max_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "HDL colesterol > 45 > 45"
+    },
+    {
+      "id": "sbp2020-tg-2a9-jejum",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "triglycerides",
+      "parameter": "Triglicérides",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 24, "age_max_months": 120, "sex": "both" },
+      "fasting": "fasting",
+      "classes": [
+        { "label": "Aceitável", "max": 75, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 75, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "Triglicérides – 0-9 anos – 10-19 anos < 75 < 90 < 85 < 100",
+      "curation_notes": "O quadro diz 0-9 anos, mas o título do quadro limita a 2 a 19 anos; adotado 2 a 9 anos."
+    },
+    {
+      "id": "sbp2020-tg-2a9-sem-jejum",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "triglycerides",
+      "parameter": "Triglicérides",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 24, "age_max_months": 120, "sex": "both" },
+      "fasting": "non_fasting",
+      "classes": [
+        { "label": "Aceitável", "max": 85, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 85, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "Triglicérides – 0-9 anos – 10-19 anos < 75 < 90 < 85 < 100"
+    },
+    {
+      "id": "sbp2020-tg-10a19-jejum",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "triglycerides",
+      "parameter": "Triglicérides",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 120, "age_max_months": 240, "sex": "both" },
+      "fasting": "fasting",
+      "classes": [
+        { "label": "Aceitável", "max": 90, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 90, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "Triglicérides – 0-9 anos – 10-19 anos < 75 < 90 < 85 < 100"
+    },
+    {
+      "id": "sbp2020-tg-10a19-sem-jejum",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "triglycerides",
+      "parameter": "Triglicérides",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 120, "age_max_months": 240, "sex": "both" },
+      "fasting": "non_fasting",
+      "classes": [
+        { "label": "Aceitável", "max": 100, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 100, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "Triglicérides – 0-9 anos – 10-19 anos < 75 < 90 < 85 < 100"
+    },
+    {
+      "id": "sbp2020-naohdl-2a19-jejum",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "non_hdl_c",
+      "parameter": "Não-HDL-C",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 24, "age_max_months": 240, "sex": "both" },
+      "fasting": "fasting",
+      "classes": [
+        { "label": "Aceitável", "max": 120, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 120, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "Não-HDL-C < 120 —",
+      "curation_notes": "A fonte só dá o valor em jejum (\"—\" sem jejum). Só se usa o não-HDL impresso no laudo; o código não calcula CT − HDL nesta versão."
+    },
+    {
+      "id": "sbp2020-apob-2a19-jejum",
+      "source": "sbp-2020-dislipidemia",
+      "parameter_code": "apob",
+      "parameter": "Apolipoproteína B",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 24, "age_max_months": 240, "sex": "both" },
+      "fasting": "fasting",
+      "classes": [
+        { "label": "Aceitável", "max": 90, "max_inclusive": false },
+        { "label": "Acima do nível aceitável", "min": 90, "min_inclusive": true }
+      ],
+      "page": { "pdf": 3, "printed": "3" },
+      "excerpt": "Apoliproteína B < 90 —"
+    },
+    {
+      "id": "sbc2025-ct-adulto",
+      "source": "sbc-2025-dislipidemias",
+      "parameter_code": "total_cholesterol",
+      "parameter": "Colesterol total",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 252, "age_max_months": null, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Desejável", "max": 190, "max_inclusive": false },
+        { "label": "Acima do valor referencial", "min": 190, "min_inclusive": true }
+      ],
+      "page": { "pdf": 36, "printed": "36" },
+      "excerpt": "Esta atualização sugere que os valores referenciais e de alvo terapêutico do perfil lipídico (adultos > 20 anos) [...] Colesterol Total < 190 mg/dL < 190 mg/dL",
+      "curation_notes": "\"> 20 anos\" lido ao pé da letra: a partir de 21 anos. Os 20 anos ficam como lacuna visível até confirmação."
+    },
+    {
+      "id": "sbc2025-hdl-adulto",
+      "source": "sbc-2025-dislipidemias",
+      "parameter_code": "hdl_c",
+      "parameter": "HDL-c",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 252, "age_max_months": null, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Desejável", "min": 40, "min_inclusive": false },
+        { "label": "Abaixo do valor referencial", "max": 40, "max_inclusive": true }
+      ],
+      "page": { "pdf": 36, "printed": "36" },
+      "excerpt": "HDL-c > 40 mg/dL > 40 mg/dL"
+    },
+    {
+      "id": "sbc2025-tg-adulto-jejum",
+      "source": "sbc-2025-dislipidemias",
+      "parameter_code": "triglycerides",
+      "parameter": "Triglicérides",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 252, "age_max_months": null, "sex": "both" },
+      "fasting": "fasting",
+      "classes": [
+        { "label": "Desejável", "max": 150, "max_inclusive": false },
+        { "label": "Acima do valor referencial", "min": 150, "min_inclusive": true }
+      ],
+      "page": { "pdf": 36, "printed": "36" },
+      "excerpt": "Triglicérides < 150 mg/dL < 175 mg/dL",
+      "curation_notes": "Na fonte, \"em jejum\" é jejum de 12 h."
+    },
+    {
+      "id": "sbc2025-tg-adulto-sem-jejum",
+      "source": "sbc-2025-dislipidemias",
+      "parameter_code": "triglycerides",
+      "parameter": "Triglicérides",
+      "unit": "mg/dL",
+      "population": { "age_min_months": 252, "age_max_months": null, "sex": "both" },
+      "fasting": "non_fasting",
+      "classes": [
+        { "label": "Desejável", "max": 175, "max_inclusive": false },
+        { "label": "Acima do valor referencial", "min": 175, "min_inclusive": true }
+      ],
+      "page": { "pdf": 36, "printed": "36" },
+      "excerpt": "Para os TG sem jejum, o valor desejável é < 175 mg/dL."
+    },
+    {
+      "id": "sbp2024-vitd-aap",
+      "source": "sbp-2024-hipovitaminose-d",
+      "parameter_code": "vitamin_d_25oh",
+      "parameter": "25-OH-vitamina D",
+      "unit": "ng/mL",
+      "criterion": "American Academy of Pediatrics (Misra et al., Pediatrics 2008), como reproduzido pela SBP",
+      "population": { "age_min_months": 0, "age_max_months": 228, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Deficiência", "max": 15, "max_inclusive": false },
+        { "label": "Insuficiência", "min": 16, "min_inclusive": true, "max": 20, "max_inclusive": true },
+        { "label": "Suficiência", "min": 21, "min_inclusive": true, "max": 100, "max_inclusive": true },
+        { "label": "Toxicidade", "min": 150, "min_inclusive": false }
+      ],
+      "page": { "pdf": 7, "printed": "7" },
+      "excerpt": "Quadro 3. Definição da suficiência de vitamina D em crianças e adolescentes (1 ng/mL = 2,5 nmol/L) [...] Suficiência 21-100 30-100 >20 Insuficiência 16-20 21-29 12-20 Deficiência <15 <20 < 12 Toxicidade >150 >100 >100",
+      "curation_notes": "As faixas impressas têm buracos (15 a < 16, > 20 a < 21 e > 100 a 150): valores nesses intervalos ficam sem classificação por este critério. Faixa etária: a fonte fala em crianças e adolescentes sem faixa numérica; adotado 0 a 18 anos, como nas recomendações de dose do mesmo documento (até 18 anos)."
+    },
+    {
+      "id": "sbp2024-vitd-consenso-raquitismo",
+      "source": "sbp-2024-hipovitaminose-d",
+      "parameter_code": "vitamin_d_25oh",
+      "parameter": "25-OH-vitamina D",
+      "unit": "ng/mL",
+      "criterion": "Global Consensus on Prevention and Management of Nutritional Rickets (Munns et al., J Clin Endocrinol Metab 2016), como reproduzido pela SBP",
+      "population": { "age_min_months": 0, "age_max_months": 228, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Deficiência", "max": 12, "max_inclusive": false },
+        { "label": "Insuficiência", "min": 12, "min_inclusive": true, "max": 20, "max_inclusive": true },
+        { "label": "Suficiência", "min": 20, "min_inclusive": false, "max": 100, "max_inclusive": true },
+        { "label": "Toxicidade", "min": 100, "min_inclusive": false }
+      ],
+      "page": { "pdf": 7, "printed": "7" },
+      "excerpt": "Quadro 3. Definição da suficiência de vitamina D em crianças e adolescentes (1 ng/mL = 2,5 nmol/L) [...] Suficiência 21-100 30-100 >20 Insuficiência 16-20 21-29 12-20 Deficiência <15 <20 < 12 Toxicidade >150 >100 >100",
+      "curation_notes": "A fonte dá suficiência \"> 20\" sem teto; o teto de 100 vem da toxicidade \"> 100\" da mesma coluna."
+    },
+    {
+      "id": "who2024-hb-6a23m",
+      "source": "who-2024-haemoglobin",
+      "parameter_code": "hemoglobin",
+      "parameter": "Hemoglobina",
+      "unit": "g/L",
+      "population": { "age_min_months": 6, "age_max_months": 24, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Abaixo do corte da OMS para anemia", "max": 105, "max_inclusive": false },
+        { "label": "No corte da OMS ou acima", "min": 105, "min_inclusive": true }
+      ],
+      "page": { "pdf": 30, "printed": "9" },
+      "excerpt": "Table 2. Haemoglobin cutoffs to define anaemia in individuals and populations [...] Children, 6–23 months <105",
+      "curation_notes": "Corte ao nível do mar, sem ajuste para altitude nem tabagismo (Tabelas 4 e 5 da fonte), que o laudo não informa. O laudo costuma imprimir g/dL: o código converte (g/L = g/dL × 10)."
+    },
+    {
+      "id": "who2024-hb-24a59m",
+      "source": "who-2024-haemoglobin",
+      "parameter_code": "hemoglobin",
+      "parameter": "Hemoglobina",
+      "unit": "g/L",
+      "population": { "age_min_months": 24, "age_max_months": 60, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Abaixo do corte da OMS para anemia", "max": 110, "max_inclusive": false },
+        { "label": "No corte da OMS ou acima", "min": 110, "min_inclusive": true }
+      ],
+      "page": { "pdf": 30, "printed": "9" },
+      "excerpt": "Children, 24–59 months <110"
+    },
+    {
+      "id": "who2024-hb-5a11a",
+      "source": "who-2024-haemoglobin",
+      "parameter_code": "hemoglobin",
+      "parameter": "Hemoglobina",
+      "unit": "g/L",
+      "population": { "age_min_months": 60, "age_max_months": 144, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Abaixo do corte da OMS para anemia", "max": 115, "max_inclusive": false },
+        { "label": "No corte da OMS ou acima", "min": 115, "min_inclusive": true }
+      ],
+      "page": { "pdf": 30, "printed": "9" },
+      "excerpt": "Children, 5–11 years <115"
+    },
+    {
+      "id": "who2024-hb-12a14a",
+      "source": "who-2024-haemoglobin",
+      "parameter_code": "hemoglobin",
+      "parameter": "Hemoglobina",
+      "unit": "g/L",
+      "population": { "age_min_months": 144, "age_max_months": 180, "sex": "both" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Abaixo do corte da OMS para anemia", "max": 120, "max_inclusive": false },
+        { "label": "No corte da OMS ou acima", "min": 120, "min_inclusive": true }
+      ],
+      "page": { "pdf": 30, "printed": "9" },
+      "excerpt": "Children, 12–14 years, nonpregnant girls <120 Children, 12–14 years, boys <120",
+      "curation_notes": "Para meninas, o corte vale para não gestantes; o laudo não informa gestação, e a consideração precisa dizer isso."
+    },
+    {
+      "id": "who2024-hb-15a65-f",
+      "source": "who-2024-haemoglobin",
+      "parameter_code": "hemoglobin",
+      "parameter": "Hemoglobina",
+      "unit": "g/L",
+      "population": { "age_min_months": 180, "age_max_months": 792, "sex": "female" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Abaixo do corte da OMS para anemia", "max": 120, "max_inclusive": false },
+        { "label": "No corte da OMS ou acima", "min": 120, "min_inclusive": true }
+      ],
+      "page": { "pdf": 30, "printed": "9" },
+      "excerpt": "Adults, 15–65 years, nonpregnant women <120",
+      "curation_notes": "Vale para não gestantes; o laudo não informa gestação, e a consideração precisa dizer isso. Os cortes de gestação da fonte não entram."
+    },
+    {
+      "id": "who2024-hb-15a65-m",
+      "source": "who-2024-haemoglobin",
+      "parameter_code": "hemoglobin",
+      "parameter": "Hemoglobina",
+      "unit": "g/L",
+      "population": { "age_min_months": 180, "age_max_months": 792, "sex": "male" },
+      "fasting": "any",
+      "classes": [
+        { "label": "Abaixo do corte da OMS para anemia", "max": 130, "max_inclusive": false },
+        { "label": "No corte da OMS ou acima", "min": 130, "min_inclusive": true }
+      ],
+      "page": { "pdf": 30, "printed": "9" },
+      "excerpt": "Adults, 15–65 years, men <130"
+    }
+  ],
+  "excluded": [
+    {
+      "what": "LDL-c, não-HDL-c e apolipoproteína B de adultos (SBC 2025, Tabela 3.1)",
+      "why": "O alvo depende da categoria de risco cardiovascular estimada pelo médico, que o laudo e o app não têm."
+    },
+    {
+      "what": "Lipoproteína(a) (SBC 2025, Tabela 3.1)",
+      "why": "A fonte diz que o valor é usado para estratificar o risco, sem meta terapêutica; fica para depois."
+    },
+    {
+      "what": "Coluna Endocrine Society do Quadro 3 da SBP 2024 (25-OH-vitamina D: suficiência 30-100 ng/mL)",
+      "why": "A SBP cita a diretriz da Endocrine Society de 2011 (Holick et al.), que a própria Endocrine Society substituiu em 2024. Pelas fontes secundárias consultadas, a versão de 2024 diz que não há limiares de 25(OH)D estabelecidos. É o problema do relatório de exemplo (versão superada citada)."
+    },
+    {
+      "what": "Faixas de 25-OH-vitamina D para adultos (SBEM/SBPC 2020)",
+      "why": "Texto completo ainda não lido na fonte primária; entra numa próxima rodada."
+    },
+    {
+      "what": "Gravidade da anemia (OMS 2024, Tabela 3) e cortes de gestação (Tabela 2)",
+      "why": "Gravidade já é classificação clínica, e o laudo não informa gestação."
+    }
+  ]
+}

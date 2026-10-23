@@ -33,6 +33,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -438,6 +440,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -484,6 +488,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "Jejum: 12 horas",
+   "fasting_hours": 12,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -555,6 +561,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -616,6 +624,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -656,6 +666,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -696,6 +708,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -736,6 +750,8 @@
    ],
    "material": "Urina",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -801,6 +817,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -841,6 +859,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
@@ -881,6 +901,8 @@
    ],
    "material": "Sangue",
    "method": "Fictício",
+   "fasting_text": "",
+   "fasting_hours": null,
    "responsible": [
     {
      "name": "Dra. Exemplo Fictícia",
