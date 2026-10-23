@@ -15,4 +15,11 @@ export const MODULE_TERMS_DRAFT: Record<string, string[]> = {
     'Você é responsável por ter base legal para tratar os dados pessoais e de saúde dos pacientes que cadastrar.',
     'Se a liberação vencer, você continua vendo, corrigindo e excluindo os cadastros, mas não cria pacientes novos nem vincula documentos.',
   ],
+  'clinical-considerations': [
+    'RASCUNHO — texto provisório, sujeito a revisão jurídica e à consulta regulatória antes de usuários externos.',
+    'As considerações comparam os valores já transcritos do laudo com diretrizes selecionadas pelo app, conforme a idade e o sexo informados, e citam a fonte de cada comparação.',
+    'São apoio à interpretação do médico assistente: não são laudo, diagnóstico nem recomendação de conduta.',
+    'A bibliografia ainda não foi validada por médico e pode conter lacunas ou erros. Confira sempre a fonte citada e o laudo original.',
+    'Não há novo envio do laudo à inteligência artificial: as considerações usam a análise já feita.',
+  ],
 };

@@ -504,8 +504,8 @@
      "name": "LDL",
      "code": null,
      "value_kind": "numeric",
-     "value_number": 140,
-     "value_text": "140",
+     "value_number": 110,
+     "value_text": "110",
      "unit": "mg/dL",
      "reference": {
       "kind": "table_by_clinical_category",

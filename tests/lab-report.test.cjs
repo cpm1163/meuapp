@@ -170,7 +170,8 @@ test('values without a lab flag are still compared (table by sex picks the row)'
   assert.equal(creatinine.details.row, 'Homens');
   const female = fixture(); female.patient_sex = 'female';
   assert.equal(pick(generateFindings(female), 'out_of_reference', 'Creatinina')[0].details.row, 'Mulheres');
-  const unknown = fixture(); unknown.patient_sex = null;
+  // 1.2 is within the men's row and above the women's: without the sex, no row can be chosen.
+  const unknown = fixture(); unknown.patient_sex = null; param(unknown, 'Creatinina').value_number = 1.2;
   const findings = generateFindings(unknown);
   assert.equal(pick(findings, 'out_of_reference', 'Creatinina').length, 0);
   assert.equal(pick(findings, 'table_check', 'Creatinina')[0].reason, 'no_unique_row');
@@ -185,6 +186,31 @@ test('bounds respect inclusive and exclusive limits', () => {
   assert.equal(pick(findings, 'out_of_reference', 'Glicose').length, 0, 'range is inclusive');
   assert.equal(pick(findings, 'out_of_reference', '25-OH Vitamina D')[0].reason, 'below_reference', '"superior a 30" excludes 30');
   assert.equal(pick(findings, 'out_of_reference', 'PSA total')[0].reason, 'above_reference', '"inferior a 4,00" excludes 4,00');
+});
+
+test('a table gives a result when every row agrees, without choosing a row', () => {
+  // LDL 140 is above the target of every risk category printed (130, 100, 70).
+  const above = fixture(); param(above, 'LDL').value_number = 140;
+  const ldl = pick(generateFindings(above), 'out_of_reference', 'LDL')[0];
+  assert.equal(ldl.reason, 'above_reference');
+  assert.equal(ldl.details.row, 'todas as linhas da tabela');
+  assert.equal(pick(generateFindings(above), 'table_check', 'LDL').length, 0);
+  // Without the sex, creatinine 1.35 is above both the men's (0.7-1.3) and the women's (0.5-1.1) rows.
+  const unknown = fixture(); unknown.patient_sex = null;
+  assert.equal(pick(generateFindings(unknown), 'out_of_reference', 'Creatinina')[0].details.row, 'todas as linhas da tabela');
+  // Same limit with and without fasting, as printed in the first real report.
+  const fasting = fixture();
+  param(fasting, 'LDL').reference.rows = [
+    {label: 'Com jejum', sex: null, age_min_years: null, age_max_years: null, low: null, low_inclusive: false, high: 190, high_inclusive: false},
+    {label: 'Sem jejum', sex: null, age_min_years: null, age_max_years: null, low: null, low_inclusive: false, high: 190, high_inclusive: false},
+  ];
+  param(fasting, 'LDL').value_number = 150;
+  const fastingFindings = generateFindings(fasting);
+  assert.equal(pick(fastingFindings, 'out_of_reference', 'LDL').length, 0);
+  assert.equal(pick(fastingFindings, 'table_check', 'LDL').length, 0);
+  // A row without limits never counts as agreement.
+  param(fasting, 'LDL').reference.rows[1].high = null;
+  assert.equal(pick(generateFindings(fasting), 'table_check', 'LDL')[0].reason, 'clinical_category');
 });
 
 test('lab flag is kept when the code cannot compare', () => {

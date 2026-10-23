@@ -49,6 +49,8 @@ test('lab notes stay in their exam and leave the highlights; other findings are 
 test('the patient record fills sex and age missing from the report, so tables by sex pick their row', () => {
   const extraction = fixture();
   extraction.patient_sex = null; extraction.patient_age_years = null;
+  // Within the men's row and above the women's, so the sex decides.
+  extraction.exams.find(exam => exam.exam_name === 'Creatinina').parameters[0].value_number = 1.2;
   const findings = generateFindings(extraction);
   const without = report.buildReport(extraction, findings, null);
   const creatinine = built => built.exams.find(exam => exam.name === 'Creatinina').rows[0];
@@ -115,3 +117,76 @@ test('what the report prints and the record lacks is offered to complete the rec
   const unprinted = fixture(); unprinted.patient_sex = null; unprinted.patient_age_years = null;
   assert.deepEqual(report.buildReport(unprinted, findings, {sex: null, birthDate: null}).recordGaps, {sex: null, age: null});
 });
+
+test('search finds parameters and exams ignoring accents and case', () => {
+  const built = report.buildReport(fixture(), generateFindings(fixture()), null);
+  const hemogram = built.exams.findIndex(exam => exam.name === 'Hemograma com Contagem de Plaquetas');
+  // Parameter inside an exam: only the matching rows, with the exam's position in the full report.
+  const [leukocytes] = report.searchExams(built.exams, 'LEUCÓCITOS');
+  assert.equal(leukocytes.index, hemogram);
+  assert.deepEqual(leukocytes.exam.rows.map(row => row.name), ['Leucócitos']);
+  // Words in any order, across the parameter and the exam name.
+  assert.equal(report.searchExams(built.exams, 'plaquetas hemograma').length, 1);
+  // An exam that matches by name keeps all its rows.
+  const vitamin = report.searchExams(built.exams, 'vitamina d');
+  assert.equal(vitamin.length, 1);
+  assert.equal(vitamin[0].exam.rows.length, built.exams[vitamin[0].index].rows.length);
+  assert.deepEqual(report.searchExams(built.exams, 'inexistente'), []);
+  // Group words that are not in any printed name.
+  for (const query of ['lipídios', 'Perfil lipídico', 'lipidograma']) {
+    assert.deepEqual(report.searchExams(built.exams, query).map(({exam}) => exam.name), ['Colesterol LDL'], query);
+  }
+  assert.deepEqual(report.searchExams(built.exams, 'tireoide').map(({exam}) => exam.name), ['TSH']);
+  assert.ok(report.searchExams(built.exams, 'função renal').some(({exam}) => exam.name === 'Creatinina'));
+  assert.deepEqual(report.searchExams(built.exams, 'perfil').map(({exam}) => exam.name), [], 'a filler alone is searched as typed');
+  assert.equal(report.searchExams(built.exams, '   ').length, built.exams.length);
+});
+
+test('the PDF has the considerations section only when it is given, escaped and with references', () => {
+  const built = report.buildReport(fixture(), generateFindings(fixture()), null);
+  const considerations = {
+    items: [{title: 'LDL <b>', exam_name: 'Colesterol LDL', page: 4, lines: [{text: '110 mg/dL: aceitável (< 110 mg/dL) pela SBP 2020.', reference: 1}],
+      caveats: ['Aviso de exemplo.']}],
+    notCompared: [{title: 'Triglicérides', reason: 'o laudo não informa se a coleta foi em jejum'}],
+    references: [{number: 1, text: 'Fonte fictícia. p. 3.', url: 'https://example.org'}],
+  };
+  const without = report.reportHtml(built, new Date('2026-10-23T12:00:00'));
+  assert.ok(!without.includes('Considerações clínicas'));
+  const html = report.reportHtml(built, new Date('2026-10-23T12:00:00'), considerations);
+  assert.ok(html.includes('<h2>Considerações clínicas</h2>'));
+  assert.ok(html.includes('não é laudo nem diagnóstico'));
+  assert.ok(html.includes('LDL &lt;b&gt;'));
+  assert.ok(html.includes('&lt; 110 mg/dL') && html.includes('[1]'));
+  assert.ok(html.includes('Triglicérides (o laudo não informa se a coleta foi em jejum)'));
+  assert.ok(html.includes('<li>Fonte fictícia. p. 3.</li>'));
+  // After the exam tables.
+  assert.ok(html.indexOf('Considerações clínicas') > html.indexOf('Colesterol LDL'));
+  assert.ok(!html.includes('Por tema'), 'no themes section without a grouping');
+  const themes = [{title: 'Perfil <lipídico>', outside: [{name: 'LDL', value: '140 mg/dL', status: 'above'}], within: ['HDL'], unchecked: []}];
+  const withThemes = report.reportHtml(built, new Date('2026-10-23T12:00:00'), considerations, themes);
+  assert.ok(withThemes.includes('<h3>Por tema</h3>'));
+  assert.ok(withThemes.includes('<b>Perfil &lt;lipídico&gt;</b><br/>LDL: 140 mg/dL, acima da referência impressa.<br/>Dentro da referência impressa: HDL.'));
+  assert.ok(withThemes.indexOf('Por tema') < withThemes.indexOf('Comparação com diretrizes'));
+});
+
+test('search shows the considerations section by name, or the items of matching parameters', () => {
+  const considerations = {
+    items: [
+      {title: 'Colesterol Total', exam_name: 'Colesterol Total', page: 10, lines: [{text: 'a', reference: 1}], caveats: []},
+      {title: 'Hemoglobina', exam_name: 'Hemograma', page: 1, lines: [{text: 'b', reference: 2}], caveats: []},
+    ],
+    notCompared: [{title: 'LDL - Colesterol', reason: 'sem diretriz'}],
+    references: [{number: 1, text: 'SBC', url: ''}, {number: 2, text: 'OMS', url: ''}],
+  };
+  // Any part of the section name, as the user types (like %word%).
+  for (const query of ['consideracoes', 'Considerações clínicas', 'referências', 'bibliografia', 'considerac', 'derac', 'refer', 'bibli', 'clinicas']) {
+    assert.equal(report.searchConsiderations(considerations, query), considerations, query);
+  }
+  const lipids = report.searchConsiderations(considerations, 'lipídios');
+  assert.deepEqual(lipids.items.map(item => item.title), ['Colesterol Total']);
+  assert.deepEqual(lipids.notCompared.map(item => item.title), ['LDL - Colesterol']);
+  // Only the references the remaining items cite; their numbers stay as in the full section.
+  assert.deepEqual(lipids.references.map(item => item.number), [1]);
+  assert.equal(report.searchConsiderations(considerations, 'ferritina'), null);
+});
+

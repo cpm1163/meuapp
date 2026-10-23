@@ -6,9 +6,9 @@ Proposta iniciada em 19/10/2026, em conversa com o usuário. **Nenhum código ai
 
 | Passo | Estado atual |
 | --- | --- |
-| 1 — Tipos de conteúdo | Decisão provisória: só os tipos 1 e 2 (23/10/2026). |
+| 1 — Tipos de conteúdo | Decisão provisória: só os tipos 1 e 2 (23/10/2026). Tipo 2 feito no app; tipo 1 feito em 23/10/2026 (ver [Tipo 1](#tipo-1--agrupamento-por-tema-23102026)). |
 | 2 — Bibliografia curada | Primeira versão em 23/10/2026, não validada por médico: 21 afirmações de 4 fontes (perfil lipídico SBP 2020 e SBC 2025, vitamina D pediátrica SBP 2024, hemoglobina OMS 2024), em [curated-statements.json](../modules/clinical-considerations/curated-statements.json), com trecho e página conferidos contra o PDF. O que ficou de fora e por quê está no próprio arquivo (`excluded`); as lacunas estão em [Pendências da bibliografia curada](#pendências-da-bibliografia-curada-23102026). |
-| 3 — Formato da saída e conferência pelo código | Comparador feito em 23/10/2026: [compare.ts](../modules/clinical-considerations/compare.ts), com 11 testes em `tests/clinical-considerations.test.cjs`. Ele classifica o valor por afirmação curada, por idade, sexo, jejum e unidade, e devolve o motivo quando não pode classificar. A extração passou a codificar perfil lipídico e 25-OH-vitamina D (instruções `lab-report/3-instructions/3`, migração `20261023000100`). A extração também transcreve o jejum impresso por exame (`fasting_text`, `fasting_hours`); o código decide o estado (12 h ou mais = em jejum; "Sem jejum" = sem jejum; o resto, desconhecido). Falta: a IA escrever o texto e a conferência dos números. |
+| 3 — Formato da saída e conferência pelo código | Comparador feito em 23/10/2026: [compare.ts](../modules/clinical-considerations/compare.ts), com 11 testes em `tests/clinical-considerations.test.cjs`. Ele classifica o valor por afirmação curada, por idade, sexo, jejum e unidade, e devolve o motivo quando não pode classificar. A extração passou a codificar perfil lipídico e 25-OH-vitamina D (instruções `lab-report/3-instructions/3`, migração `20261023000100`). A extração também transcreve o jejum impresso por exame (`fasting_text`, `fasting_hours`); o código decide o estado (12 h ou mais = em jejum; "Sem jejum" = sem jejum; o resto, desconhecido). Publicado no remoto em 23/10/2026: migração aplicada com `db push --linked` (conferida em `migration list`) e funções `analyze-document` e `collect-analyses` publicadas juntas. Validado com a amostra 1 no Android em 23/10/2026: os 6 parâmetros lipídicos e a 25-OH-vitamina D vieram com o código certo, VLDL ficou sem código, e o jejum ficou vazio, corretamente, porque o laudo imprime as referências com e sem jejum mas não o jejum da coleta. Comparador sobre a extração real (homem, 63 anos): colesterol total acima do valor referencial (SBC 2025), HDL desejável, hemoglobina no corte da OMS ou acima; LDL, não-HDL e vitamina D sem afirmação; triglicérides sem classificação (jejum desconhecido). Falta: a IA escrever o texto e a conferência dos números. |
 | 4 — Interface (tela e PDF) | Pendente. |
 | 5 — Validação | Pendente. |
 | 6 — Consulta regulatória | Pendente; necessária antes de usuários externos. |
@@ -79,6 +79,16 @@ Mantém a abordagem híbrida da FASE 03: a IA produz o conteúdo, e o código co
 4. **Tipos permitidos.** O código descarta as considerações de tipos que não foram liberados.
 5. **Idade e sexo.** A IA recebe só idade e sexo, nunca nome ou CPF, como no PDF atual.
 6. **Aviso.** A tela e o PDF dizem que a seção é apoio à interpretação do médico assistente, não laudo nem diagnóstico.
+
+## Tipo 1 — agrupamento por tema (23/10/2026)
+
+Decidido pelo usuário em 23/10/2026, depois de comparar com o relatório de exemplo: **a IA só agrupa, o código escreve**, e o agrupamento vem **automaticamente** com as considerações, sem botão.
+
+- **O que a IA recebe:** só id, nome do exame, nome do parâmetro e unidade. Nenhum valor, referência, idade, sexo ou identificação. Ela devolve temas (título e ids), em saída estruturada (`output_config.format`).
+- **O que o código confere** (`modules/clinical-considerations/grouping.ts`): ids existentes e sem repetição; título de até 60 caracteres e sem palavras de diagnóstico, causa, risco, resultado ou conduta. Tema com título recusado e parâmetros deixados de fora vão para "Outros exames".
+- **O que o código escreve:** em cada tema, os parâmetros fora da referência impressa (valor e situação), os que estão dentro e os sem comparação automática, pela mesma classificação do relatório (nível A).
+- **Quando:** o app pede o agrupamento ao abrir uma análise pronta de quem tem o módulo de considerações. A função `group-analysis` autoriza pelo banco (`start_analysis_grouping`: dono, análise pronta, módulo liberado), faz **uma chamada síncrona** (Opus 5.5, esforço baixo, sem nova tentativa automática, com fallback do servidor em caso de recusa) e grava o resultado (`analysis_groupings`, migração `20261023000300`, 16 testes pgTAP). **No máximo uma chamada por análise**: falha não é repetida automaticamente; só uma tentativa abandonada em andamento (mais de 15 minutos) pode recomeçar.
+- **Custo:** a entrada é só a lista de nomes (poucos milhares de tokens), por análise aberta uma vez. Os tokens ficam na própria linha do agrupamento e no log. Pendência: eles somem se a análise for excluída, ao contrário de `analysis_usage`.
 
 ## Regulação
 

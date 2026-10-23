@@ -2,7 +2,9 @@
 
 ## Estado e escopo
 
-Planejamento iniciado em 03/10/2026. Feito em 03/10/2026: conta Expo, nome neutro `exames-ia` em `app.json` e projeto criado e ligado na Expo (`@cpm1163-apps/exames-ia`, `projectId` em `app.json`, por `eas init`). Falta o restante do [plano](#plano) a partir do `expo-dev-client`. **Build adiada** por decisão do usuário (03/10/2026): seguir com a FASE 03 e fazer uma única build quando o módulo de captura de fotos estiver escolhido.
+Planejamento iniciado em 03/10/2026. Feito em 03/10/2026: conta Expo, nome neutro `exames-ia` em `app.json` e projeto criado e ligado na Expo (`@cpm1163-apps/exames-ia`, `projectId` em `app.json`, por `eas init`). Falta o restante do [plano](#plano) a partir do `expo-dev-client`.
+
+**Mudança em 23/10/2026:** por decisão do usuário, a primeira build é **preview** (APK com o JavaScript embutido, funciona sem o computador), não development. Feito em 23/10/2026: `eas.json` só com o perfil `preview` (distribuição interna, APK, ambiente `preview`); `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` criadas no ambiente `preview` do EAS (plaintext, Supabase remoto); dependências alinhadas com `npx expo install --fix` (`expo-doctor` 21/21); chave de assinatura Android gerada e guardada pelo EAS; primeira build Android preview enviada. Consequências: cada mudança de tela exige nova build (ou EAS Update, a avaliar); sem `__DEV__`, a troca rápida de conta não aparece. O `expo-dev-client` fica para quando precisarmos iterar no celular. **Build adiada** por decisão do usuário (03/10/2026): seguir com a FASE 03 e fazer uma única build quando o módulo de captura de fotos estiver escolhido.
 
 Até aqui o app foi validado no **Expo Go**, que só inclui os módulos nativos que vêm com ele. O development build é a versão do app com o próprio código nativo e as ferramentas de desenvolvimento (`expo-dev-client`). A partir dele, o celular continua carregando o JavaScript do `npx expo start`, como no Expo Go. Ele é necessário para:
 
@@ -51,16 +53,16 @@ Cada biblioteca nativa nova exige outra build (cerca de 10 a 20 minutos na fila 
 
 ## Validação
 
-Android (development build, Supabase remoto):
+Android (Supabase remoto; primeira build em 23/10/2026 é preview, instalada após liberar o bloqueio do Play Protect para app de desenvolvedor desconhecido):
 
-- [ ] O app abre pelo development build e carrega o JavaScript do `npx expo start`.
+- [x] Preview (23/10/2026): o app abre sem o computador, ligado ao Supabase remoto.
 - [ ] Login por senha e magic link funcionam (o link do e-mail abre o app pelo `examesia://auth/callback`).
-- [ ] Login Google: abre o navegador, volta ao app e fica logado; testar também cancelar.
-- [ ] A sessão continua depois de fechar e abrir o app.
+- [x] Login Google: abre o navegador, volta ao app e fica logado; cancelar volta à tela de login (23/10/2026).
+- [x] A sessão continua depois de fechar e abrir o app (23/10/2026).
 - [ ] Documentos: carregar, abrir, compartilhar e excluir (FASE 01).
 - [ ] Módulos: checklist de 03/10/2026 em [profiles.md](profiles.md).
 - [ ] A troca rápida de conta continua aparecendo (o app está em `__DEV__`).
-- [ ] Se a câmera for incluída: a permissão aparece em português; tirar a foto e escolher da galeria funcionam.
+- [x] Câmera: a permissão aparece; tirar a foto e escolher da galeria funcionam. A galeria não pede permissão (seletor de fotos do Android) (23/10/2026).
 
 iOS: o mesmo checklist, quando possível.
 
@@ -70,4 +72,5 @@ iOS: o mesmo checklist, quando possível.
 - [x] Conta Expo: usuário `cpm1163`; projeto na organização `cpm1163-apps` (03/10/2026).
 - [x] `examesia://auth/callback` cadastrado nas Redirect URLs do Supabase remoto; `myapp://auth/callback` removido (03/10/2026).
 - [ ] Conta Apple Developer: contratar agora ou só quando o iPhone voltar.
-- [ ] Incluir o módulo de captura de fotos nesta primeira build.
+- [x] Incluir o módulo de captura de fotos nesta primeira build: `expo-image-picker` e `expo-camera` já estão em `app.json` (23/10/2026).
+- [x] Primeira build é preview, não development (23/10/2026).

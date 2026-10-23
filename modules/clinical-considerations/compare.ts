@@ -15,8 +15,10 @@ export type Statement = {
   population: {age_min_months: number | null; age_max_months: number | null; sex: StatementSex};
   fasting: StatementFasting; classes: StatementClass[];
   page: {pdf: number; printed: string}; excerpt: string; curation_notes?: string;
+  /** Shown with the result, e.g. what the report does not say (altitude, pregnancy). */
+  caveats?: string[];
 };
-export type Source = {id: string; title: string; url: string};
+export type Source = {id: string; short: string; reference: string; title: string; url: string};
 export type CuratedStatements = {version: number; validation: string; sources: Source[]; statements: Statement[]};
 
 /** Age as an interval in months, [min, max): an age in whole years covers 12 months. */
@@ -31,7 +33,9 @@ export type Comparison = {
   value_number: number | null; unit: string;
 } & (
   | {status: 'classified' | 'outside_classes'; statement_id: string; source_id: string; criterion: string | null;
-    compared_value: number; compared_unit: string; class_label: string | null}
+    compared_value: number; compared_unit: string; class_label: string | null;
+    // Set when the fasting state is unknown but the fasting and non-fasting statements give the same class.
+    also_statement_id?: string}
   | {status: 'skipped'; reason: SkipReason}
 );
 
@@ -122,6 +126,13 @@ export function compareWithStatements(extraction: Extraction, patient: Patient, 
       continue;
     }
     const statements = applicable(candidates, patient, fasting);
+    if (statements === 'fasting_unknown') {
+      const agreed = sameWithAndWithoutFasting(candidates, patient, value, parameter.unit);
+      if (agreed) {
+        comparisons.push({...base, ...agreed});
+        continue;
+      }
+    }
     if (typeof statements === 'string') {
       comparisons.push({...base, status: 'skipped', reason: statements});
       continue;
@@ -141,10 +152,33 @@ export function compareWithStatements(extraction: Extraction, patient: Patient, 
   return comparisons;
 }
 
+/**
+ * The report does not say whether the sample was fasting, but the fasting and the non-fasting statement of the
+ * same source give the same class (e.g. triglycerides of 129 mg/dL: below 150 and below 175): the result holds
+ * either way. Null when any of that is not true.
+ */
+function sameWithAndWithoutFasting(candidates: Statement[], patient: Patient, value: number, unit: string) {
+  const fasting = applicable(candidates, patient, 'fasting');
+  const nonFasting = applicable(candidates, patient, 'non_fasting');
+  if (typeof fasting === 'string' || typeof nonFasting === 'string' || fasting.length !== 1 || nonFasting.length !== 1) return null;
+  const [withFasting, withoutFasting] = [fasting[0], nonFasting[0]];
+  if (withFasting.source !== withoutFasting.source || withFasting.unit !== withoutFasting.unit) return null;
+  const compared = convert(value, unit, withFasting.unit);
+  if (compared === null) return null;
+  const label = withFasting.classes.find(item => inClass(compared, item))?.label;
+  if (!label || withoutFasting.classes.find(item => inClass(compared, item))?.label !== label) return null;
+  return {status: 'classified' as const, statement_id: withFasting.id, also_statement_id: withoutFasting.id,
+    source_id: withFasting.source, criterion: withFasting.criterion ?? null, compared_value: compared,
+    compared_unit: withFasting.unit, class_label: label};
+}
+
 /** Structural problems in the curated file; an empty list means it can be used. */
 export function checkStatements(curated: CuratedStatements): string[] {
   const errors: string[] = [];
   const sources = new Set(curated.sources.map(item => item.id));
+  for (const source of curated.sources) {
+    if (!source.short?.trim() || !source.reference?.trim()) errors.push(`source ${source.id}: missing short name or reference`);
+  }
   const ids = new Set<string>();
   for (const statement of curated.statements) {
     const at = `statement ${statement.id}`;

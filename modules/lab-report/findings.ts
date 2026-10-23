@@ -110,10 +110,27 @@ function pickRow(rows: ReferenceRow[], sex: Sex, age: number | null): ReferenceR
   return matches.length === 1 ? matches[0] : null;
 }
 
+/** Label shown when the result is the same in every row, so no row had to be chosen. */
+export const ALL_ROWS = 'todas as linhas da tabela';
+
+/**
+ * Same result in every row of a table (e.g. "Com jejum" and "Sem jejum" with the same limit, or LDL above the
+ * target of every risk category): it holds whichever row applies, so no row is chosen. Null if any row differs
+ * or has no limits (decided 23/10/2026, docs/exam-comparison.md).
+ */
+function sameInAllRows(value: number, rows: ReferenceRow[]): 'within' | 'below' | 'above' | null {
+  if (rows.length < 2 || rows.some(row => row.low === null && row.high === null)) return null;
+  const statuses = new Set(rows.map(row => compareNumber(value, row)));
+  return statuses.size === 1 ? [...statuses][0] : null;
+}
+
 function compareValue(value: number | null, text: string, kind: Parameter['value_kind'], reference: Reference,
   sex: Sex, age: number | null): Comparison {
   if (reference.kind === 'none') return {status: 'not_comparable'};
-  if (reference.kind === 'table_by_clinical_category') return {status: 'table_check', reason: 'clinical_category'};
+  if (reference.kind === 'table_by_clinical_category') {
+    const same = kind === 'numeric' && value !== null ? sameInAllRows(value, reference.rows) : null;
+    return same ? {status: same, row: ALL_ROWS} : {status: 'table_check', reason: 'clinical_category'};
+  }
   if (reference.kind === 'qualitative') {
     if (reference.expected.length === 0) return {status: 'unverifiable', reason: 'reference_not_parsed'};
     const value = normalizeText(text);
@@ -129,7 +146,10 @@ function compareValue(value: number | null, text: string, kind: Parameter['value
   if (kind !== 'numeric' || value === null) return {status: 'unverifiable', reason: 'value_not_read'};
   if (reference.kind === 'table_by_demographics') {
     const row = pickRow(reference.rows, sex, age);
-    if (!row) return {status: 'table_check', reason: 'no_unique_row'};
+    if (!row) {
+      const same = sameInAllRows(value, reference.rows);
+      return same ? {status: same, row: ALL_ROWS} : {status: 'table_check', reason: 'no_unique_row'};
+    }
     if (row.low === null && row.high === null) return {status: 'unverifiable', reason: 'reference_not_parsed'};
     return {status: compareNumber(value, row), bounds: row, row: row.label};
   }

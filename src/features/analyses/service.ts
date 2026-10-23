@@ -1,5 +1,6 @@
 import { createClient, FunctionsHttpError } from '@supabase/supabase-js';
 import type { Extraction, Finding } from '../../../modules/lab-report/findings';
+import type { Group } from '../../../modules/clinical-considerations/grouping';
 
 export const MODULE_ID = 'lab-report';
 
@@ -26,6 +27,8 @@ export class AnalysisError extends Error {
 
 // Each operation stays bound to the session that initiated it, even during account switches.
 // The app never calls the AI: the Edge Functions hold the key and the database authorizes each analysis.
+export type Grouping = { status: 'processing' | 'ready' | 'failed'; groups: Group[] | null; failure_reason: string | null };
+
 export function createAnalysisService(accessToken: string) {
   const client = createClient(
     process.env.EXPO_PUBLIC_SUPABASE_URL!,
@@ -71,6 +74,23 @@ export function createAnalysisService(accessToken: string) {
       if (!item || !item.active) return 'not_granted';
       if (!['testing', 'active'].includes(item.module_status)) return 'not_available';
       return item.terms_accepted ? 'ready' : 'terms_pending';
+    },
+    /** The theme grouping of an analysis (clinical considerations, type 1), or null if none was started. */
+    async grouping(analysisId: string): Promise<Grouping | null> {
+      const { data, error } = await client.from('analysis_groupings').select('status, groups, failure_reason')
+        .eq('analysis_id', analysisId).maybeSingle();
+      if (error) throw error;
+      return data as Grouping | null;
+    },
+    /** Asks the server to group a ready analysis; it calls the AI at most once per analysis. */
+    startGrouping: (analysisId: string) => invoke('group-analysis', { analysis_id: analysisId }),
+    /** Whether a level B add-on module (e.g. 'clinical-considerations') can be shown to this account. */
+    async moduleReady(moduleId: string): Promise<boolean> {
+      const { data, error } = await client.rpc('my_modules');
+      if (error) throw error;
+      const item = (data as { module_id: string; active: boolean; terms_accepted: boolean; module_status: string }[])
+        .find(row => row.module_id === moduleId);
+      return !!item && item.active && item.terms_accepted && ['testing', 'active'].includes(item.module_status);
     },
     async quota() {
       const { data, error } = await client.rpc('get_analysis_quota');
