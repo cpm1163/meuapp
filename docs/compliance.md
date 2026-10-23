@@ -87,6 +87,40 @@ Conforme a documentação da API consultada em 02/10/2026:
 
 Com a amostra 1 como gabarito, rodar a extração (1) com instruções e saída estruturada na própria chamada e (2) com a skill do módulo. Comparar acerto campo a campo, custo e tempo de resposta. Se a skill não piorar nenhum dos três, ela vira o padrão dos módulos; caso contrário, o conhecimento do módulo fica versionado no repositório e é enviado na própria chamada.
 
+### Skills por tipo de exame (19/10/2026)
+
+Definido pelo usuário em 19/10/2026: cada tipo de exame ou de tarefa tem a **sua skill**.
+
+| Skill | O que faz | Nível | Documento |
+| --- | --- | --- | --- |
+| Hemograma | Lê o hemograma (as contas de consistência ficam no código) | A | [modules/hemogram/SKILL.md](../modules/hemogram/SKILL.md); [Consistência do hemograma](#consistência-do-hemograma) |
+| Urina | EAS (urina tipo 1): escalas em palavras ou cruzes, sedimento, exame físico; urocultura com antibiograma a definir (parte desta skill ou skill própria) | A | [modules/urinalysis/SKILL.md](../modules/urinalysis/SKILL.md) |
+| Laudo de imagem | Lê o texto do laudo de ultrassom, raio-X etc. | A | [descriptive-report.md](descriptive-report.md) |
+| Considerações | Escreve as considerações clínicas com a base de conhecimento | B | [clinical-considerations.md](clinical-considerations.md), [knowledge-base.md](knowledge-base.md) |
+| Imagem | A IA analisa a própria imagem | Acima do B | Por último: diagnóstico por imagem, exige consulta regulatória e validação com radiologistas |
+
+**Quem escolhe a skill:**
+
+- **Opção A (testar primeiro):** uma chamada com todas as skills liberadas para o médico. O Claude vê o nome e a descrição de cada uma e abre só as que o laudo pede.
+- **Opção B (se A não der bom resultado):** a extração identifica os exames, e o servidor chama cada skill necessária, uma a uma.
+
+Nas duas opções, o servidor só envia as skills dos módulos que o médico contratou, e continua validando a saída e aplicando as regras do código.
+
+**Documentação consultada em 19/10/2026** ([Skills](https://platform.claude.com/docs/en/build-with-claude/skills-guide), [Execução de código](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool)):
+
+- Até 20 skills por chamada, em `container.skills`, com a ferramenta de execução de código. Cada skill tem até 30 MB, e `SKILL.md` com `name` e `description`.
+- A execução de código funciona no modo em lote (Message Batches), com o mesmo preço. Falta confirmar no teste que `container.skills` também funciona em lote.
+- Custo do contêiner: 1.550 horas grátis por mês por organização; depois, US$ 0,05 por hora por contêiner.
+- O contêiner não tem acesso à internet.
+- Skills e execução de código **não têm retenção zero de dados (ZDR)**: seguem a política padrão de retenção da Anthropic. Isso vale para os laudos processados com skill e precisa constar na política de privacidade.
+- Skills ficam visíveis para todo o workspace da Anthropic. Hoje o workspace `exames-ia` é só deste app.
+
+**Gabaritos do teste (19/10/2026):** `tests/fixtures/private/hemogram-gabarito.json` (páginas 1 e 2 da amostra 1) e `tests/fixtures/private/urine-gabarito.json` (páginas 24 a 26), fora do git. Cada um lista as armadilhas do laudo, como a densidade "1.022" (decimal) e a mesma creatinina urinária em duas unidades.
+
+**Primeira versão das skills (19/10/2026):** só transcrevem, no esquema `lab-report/3`. Elas refinam uma regra das instruções gerais: cor sozinha, sem ícone, não conta como marcação do laboratório. Se o teste confirmar a regra, as instruções gerais passam a dizer o mesmo.
+
+**Critérios do teste da opção A:** em laudos com gabarito, o Claude abriu as skills certas (e só elas), o acerto campo a campo não piorou em relação ao formato atual, e custo e tempo continuam dentro das [travas de custo](#travas-de-custo).
+
 ### Ciclo de vida de um módulo (FASE 03)
 
 O primeiro módulo já nasce no formato definitivo, para servir de base aos próximos:
@@ -498,6 +532,8 @@ Recebida em 02/10/2026: PDF de laboratório de grande rede, 1,4 MB, **26 página
 - [x] Direção de produto: módulos de análise oferecidos por profissional, implementados como skills do Claude; laudo laboratorial é o primeiro módulo (02/10/2026).
 - [x] Ciclo de vida dos módulos (fonte no repositório, testes, versão fixa, rastreabilidade) ; catálogo, liberação de módulos e administração na FASE 02, ver [profiles.md](profiles.md) (02/10/2026).
 - [ ] Abordagem híbrida (conhecimento na skill, regras no servidor): confirmar após o teste comparativo com skill × sem skill.
+- [x] Uma skill por tipo de exame ou tarefa: hemograma, urina, laudo de imagem, considerações e, por último, imagem (19/10/2026).
+- [ ] Escolha da skill: testar a opção A (o Claude escolhe entre as skills liberadas); se o resultado não for bom, opção B (o servidor chama cada skill) (19/10/2026).
 - [ ] Consulta a especialista em regulação sanitária antes de usuários externos.
 - [ ] Política de retenção do provedor de IA, a verificar e registrar.
 - [x] Texto do termo: o provisório da FASE 02 continua valendo por enquanto (03/10/2026); revisão jurídica antes de usuários externos.
