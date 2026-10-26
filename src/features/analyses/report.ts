@@ -1,6 +1,5 @@
 import { classifyParameter, generateFindings, normalizeText, type Extraction, type Finding, type ParameterStatus, type Sex } from '../../../modules/lab-report/findings';
-import { CONSIDERATIONS_DISCLAIMER, type ConsiderationsResult } from '../../../modules/clinical-considerations/considerations';
-import { themeLines, THEMES_NOTE, type Theme } from '../../../modules/clinical-considerations/grouping';
+import { splitUnsourced, textBlocks, UNSOURCED_NOTE, UNSOURCED_TITLE, WRITING_DISCLAIMER } from '../../../modules/clinical-considerations/writing';
 import { DISCLAIMER, findingDetails, findingTitle, findingTone, groupFindings, reasonText, TONE_COLORS, TONE_NOTE } from './findings-text';
 
 // Full report of one analysis (decided 16/10/2026, docs/exam-comparison.md): every parameter by exam, classified in
@@ -178,41 +177,32 @@ export function searchExams(exams: ReportExam[], query: string): { exam: ReportE
 // The section is searched like a parameter name: each word may appear anywhere in it (like %word%).
 const SECTION_NAME = 'Considerações clínicas Referências bibliográficas bibliografia diretrizes';
 
-/**
- * The considerations that match a search: the whole section when the query names it ("considerações",
- * "referências"), otherwise only the items of matching parameters, with the references they cite. Null if none.
- */
-export function searchConsiderations(considerations: ConsiderationsResult, query: string): ConsiderationsResult | null {
+/** Whether the considerations section matches a search: by its name or by any word of its text. */
+export function searchConsiderations(text: string, query: string): boolean {
   const matches = queryMatcher(query);
-  if (!matches || matches(SECTION_NAME)) return considerations;
-  const items = considerations.items.filter(item => matches(`${item.title} ${item.exam_name}`));
-  const notCompared = considerations.notCompared.filter(item => matches(item.title));
-  if (items.length === 0 && notCompared.length === 0) return null;
-  const cited = new Set(items.flatMap(item => item.lines.map(line => line.reference)));
-  return { items, notCompared, references: considerations.references.filter(item => cited.has(item.number)) };
+  return !!matches && (matches(SECTION_NAME) || matches(text));
 }
+
+/** The considerations approved by the doctor, the only ones that go to the PDF (decided 26/10/2026). */
+export type ApprovedConsiderations = { text: string; approvedAt: string; references: string[] };
 
 const escape = (text: string) => text.replace(/[&<>"']/g, char =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string);
 
-/** HTML for expo-print. Everything is escaped: the texts come from the AI transcription. */
-/** Level B section, only when the account has the considerations module (see considerations.ts). */
-function considerationsHtml(considerations: ConsiderationsResult, themes: Theme[] | null): string {
-  const byTheme = themes?.length ? `<h3>Por tema</h3><p class="muted">${escape(THEMES_NOTE)}</p>${
-    themes.map(theme => `<p><b>${escape(theme.title)}</b><br/>${themeLines(theme).map(escape).join('<br/>')}</p>`).join('')}` : '';
-  const items = considerations.items.map(item => `<h3>${escape(item.title)}</h3>${
-    item.lines.map(line => `<p>${escape(line.text)} [${line.reference}]</p>`).join('')}${
-    item.caveats.map(caveat => `<p class="muted">${escape(caveat)}</p>`).join('')}`).join('');
-  const notCompared = considerations.notCompared.length ? `<p class="muted"><b>Sem comparação:</b> ${
-    considerations.notCompared.map(item => `${escape(item.title)} (${escape(item.reason)})`).join(' · ')}</p>` : '';
-  const references = considerations.references.length ? `<h3>Referências bibliográficas</h3><ol>${
-    considerations.references.map(item => `<li>${escape(item.text)}</li>`).join('')}</ol>` : '';
-  return `<h2>Considerações clínicas</h2><div class="box">${escape(CONSIDERATIONS_DISCLAIMER)}</div>${byTheme}<h3>Comparação com diretrizes</h3>${
-    items || '<p>Nenhum parâmetro deste laudo tem diretriz selecionada para comparação.</p>'}${notCompared}${references}`;
+/** Level B section, only when the doctor approved the text (see writing.ts). */
+function considerationsHtml(approved: ApprovedConsiderations): string {
+  const blocks = (text: string) => textBlocks(text).map(block =>
+    `<p>${block.title ? `<b>${escape(block.title)}</b><br/>` : ''}${escape(block.body).replace(/\n/g, '<br/>')}</p>`).join('');
+  const { sourced, unsourced } = splitUnsourced(approved.text);
+  const references = approved.references.length ? `<h3>Referências bibliográficas</h3><ol>${
+    approved.references.map(item => `<li>${escape(item)}</li>`).join('')}</ol>` : '';
+  return `<h2>Considerações clínicas</h2><div class="box">${escape(WRITING_DISCLAIMER)}</div><p class="muted">Revisado pelo médico em ${
+    escape(new Date(approved.approvedAt).toLocaleDateString('pt-BR'))}.</p>${blocks(sourced)}${unsourced !== null ? `<div class="box"><b>${escape(UNSOURCED_TITLE)}</b><br/><span class="muted">${
+    escape(UNSOURCED_NOTE)}</span>${blocks(unsourced)}</div>` : ''}${references}`;
 }
 
-export function reportHtml(report: Report, generatedAt: Date, considerations: ConsiderationsResult | null = null,
-  themes: Theme[] | null = null): string {
+/** HTML for expo-print. Everything is escaped: the texts come from the AI transcription and from the doctor. */
+export function reportHtml(report: Report, generatedAt: Date, considerations: ApprovedConsiderations | null = null): string {
   // One card per point of attention, colored by the side of the reference (findingTone).
   const highlights = groupFindings(report.highlights).map(group => `<h3>${escape(group.title)} (${group.items.length})</h3>${
     group.items.map(item => {
@@ -249,7 +239,7 @@ export function reportHtml(report: Report, generatedAt: Date, considerations: Co
       report.collectedAt ? escape(formatDate(report.collectedAt)) : 'data não impressa'}<br/>Paciente: ${escape(sexAgeText(report))}${source}</p>
     <div class="box">${escape(DISCLAIMER)} Transcrição automática por IA e comparação por regras do app; não é laudo nem diagnóstico.</div>
     <h2>Pontos de atenção</h2>${highlights ? `<p class="muted">${escape(TONE_NOTE)}</p>${highlights}` : '<p>Nenhum ponto de atenção encontrado.</p>'}
-    ${exams}${considerations ? considerationsHtml(considerations, themes) : ''}${others}
+    ${exams}${considerations ? considerationsHtml(considerations) : ''}${others}
     <p class="muted">Gerado em ${escape(generatedAt.toLocaleString('pt-BR'))}. Sem identificação do paciente.</p>
   </body></html>`;
 }

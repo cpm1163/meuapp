@@ -142,51 +142,36 @@ test('search finds parameters and exams ignoring accents and case', () => {
   assert.equal(report.searchExams(built.exams, '   ').length, built.exams.length);
 });
 
-test('the PDF has the considerations section only when it is given, escaped and with references', () => {
+test('the PDF has the considerations only when approved: escaped, with the review date, the block without source and references', () => {
   const built = report.buildReport(fixture(), generateFindings(fixture()), null);
-  const considerations = {
-    items: [{title: 'LDL <b>', exam_name: 'Colesterol LDL', page: 4, lines: [{text: '110 mg/dL: aceitável (< 110 mg/dL) pela SBP 2020.', reference: 1}],
-      caveats: ['Aviso de exemplo.']}],
-    notCompared: [{title: 'Triglicérides', reason: 'o laudo não informa se a coleta foi em jejum'}],
-    references: [{number: 1, text: 'Fonte fictícia. p. 3.', url: 'https://example.org'}],
+  const approved = {
+    text: 'Metabolismo glicêmico\nA hemoglobina glicada <b> está na faixa de pré-diabetes. [1]\n\n'
+      + 'Análise da IA, sem fonte verificada\nA insulina elevada pode estar associada a menor sensibilidade à insulina.',
+    approvedAt: '2026-10-26T15:00:00Z', references: ['Fonte fictícia. p. 3.'],
   };
-  const without = report.reportHtml(built, new Date('2026-10-23T12:00:00'));
+  const without = report.reportHtml(built, new Date('2026-10-26T12:00:00'));
   assert.ok(!without.includes('Considerações clínicas'));
-  const html = report.reportHtml(built, new Date('2026-10-23T12:00:00'), considerations);
+  const html = report.reportHtml(built, new Date('2026-10-26T12:00:00'), approved);
   assert.ok(html.includes('<h2>Considerações clínicas</h2>'));
   assert.ok(html.includes('não é laudo nem diagnóstico'));
-  assert.ok(html.includes('LDL &lt;b&gt;'));
-  assert.ok(html.includes('&lt; 110 mg/dL') && html.includes('[1]'));
-  assert.ok(html.includes('Triglicérides (o laudo não informa se a coleta foi em jejum)'));
+  assert.ok(html.includes('Revisado pelo médico em 26/10/2026.'));
+  assert.ok(html.includes('<b>Metabolismo glicêmico</b><br/>A hemoglobina glicada &lt;b&gt; está na faixa de pré-diabetes. [1]'));
+  assert.ok(html.includes('<div class="box"><b>Análise da IA, sem fonte verificada</b>'));
+  assert.ok(html.indexOf('A insulina elevada') > html.indexOf('Análise da IA, sem fonte verificada'));
   assert.ok(html.includes('<li>Fonte fictícia. p. 3.</li>'));
   // After the exam tables.
   assert.ok(html.indexOf('Considerações clínicas') > html.indexOf('Colesterol LDL'));
-  assert.ok(!html.includes('Por tema'), 'no themes section without a grouping');
-  const themes = [{title: 'Perfil <lipídico>', outside: [{name: 'LDL', value: '140 mg/dL', status: 'above'}], within: ['HDL'], unchecked: []}];
-  const withThemes = report.reportHtml(built, new Date('2026-10-23T12:00:00'), considerations, themes);
-  assert.ok(withThemes.includes('<h3>Por tema</h3>'));
-  assert.ok(withThemes.includes('<b>Perfil &lt;lipídico&gt;</b><br/>LDL: 140 mg/dL, acima da referência impressa.<br/>Dentro da referência impressa: HDL.'));
-  assert.ok(withThemes.indexOf('Por tema') < withThemes.indexOf('Comparação com diretrizes'));
 });
 
-test('search shows the considerations section by name, or the items of matching parameters', () => {
-  const considerations = {
-    items: [
-      {title: 'Colesterol Total', exam_name: 'Colesterol Total', page: 10, lines: [{text: 'a', reference: 1}], caveats: []},
-      {title: 'Hemoglobina', exam_name: 'Hemograma', page: 1, lines: [{text: 'b', reference: 2}], caveats: []},
-    ],
-    notCompared: [{title: 'LDL - Colesterol', reason: 'sem diretriz'}],
-    references: [{number: 1, text: 'SBC', url: ''}, {number: 2, text: 'OMS', url: ''}],
-  };
+test('search shows the considerations section by its name or by words of its text', () => {
+  const text = 'Perfil lipídico\nO colesterol total elevado tem papel na doença aterosclerótica. [1]';
   // Any part of the section name, as the user types (like %word%).
   for (const query of ['consideracoes', 'Considerações clínicas', 'referências', 'bibliografia', 'considerac', 'derac', 'refer', 'bibli', 'clinicas']) {
-    assert.equal(report.searchConsiderations(considerations, query), considerations, query);
+    assert.equal(report.searchConsiderations(text, query), true, query);
   }
-  const lipids = report.searchConsiderations(considerations, 'lipídios');
-  assert.deepEqual(lipids.items.map(item => item.title), ['Colesterol Total']);
-  assert.deepEqual(lipids.notCompared.map(item => item.title), ['LDL - Colesterol']);
-  // Only the references the remaining items cite; their numbers stay as in the full section.
-  assert.deepEqual(lipids.references.map(item => item.number), [1]);
-  assert.equal(report.searchConsiderations(considerations, 'ferritina'), null);
+  assert.equal(report.searchConsiderations(text, 'aterosclerótica'), true);
+  assert.equal(report.searchConsiderations(text, 'lipídios'), true, 'group words work as in the exams');
+  assert.equal(report.searchConsiderations(text, 'ferritina'), false);
+  assert.equal(report.searchConsiderations(text, '   '), false);
 });
 

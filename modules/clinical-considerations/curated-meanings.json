@@ -7,7 +7,7 @@
     "premises: todas precisam valer. 'range' compara o valor com min/max na unidade da ficha (*_inclusive diz se o limite entra); 'status' usa a classificação contra a referência impressa no laudo (above, below, within).",
     "meaning: texto-base do significado, em linguagem de hipótese; a IA pode reescrever, sem acrescentar afirmação que a ficha não tenha.",
     "kind: 'guideline' (diretriz) ou 'review' (revisão publicada, mostrada como revisão e não como diretriz).",
-    "parameter_code: hba1c, homa_ir, egfr e urine_acr ainda não existem na extração; são propostos aqui e precisam entrar nas skills, como os demais códigos novos."
+    "parameter_code: fasting_glucose, hba1c, insulin, homa_ir, egfr e urine_acr entraram na extração em lab-report/3-instructions/4 (26/10/2026); análises anteriores não têm esses códigos e precisam ser refeitas para usar as fichas."
   ],
   "sources": [
     {

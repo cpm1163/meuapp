@@ -91,8 +91,9 @@
             "neutrophils_pct", "neutrophils_abs", "lymphocytes_pct", "lymphocytes_abs",
             "monocytes_pct", "monocytes_abs", "eosinophils_pct", "eosinophils_abs",
             "basophils_pct", "basophils_abs", "platelets",
-            "total_cholesterol", "ldl_c", "hdl_c", "non_hdl_c", "triglycerides", "apob", "vitamin_d_25oh", null],
-          "description": "Somente para hemograma, perfil lipídico e 25-OH-vitamina D, conforme a lista; null nos demais. Percentual e absoluto do diferencial são parâmetros separados."
+            "total_cholesterol", "ldl_c", "hdl_c", "non_hdl_c", "triglycerides", "apob", "vitamin_d_25oh",
+            "fasting_glucose", "hba1c", "insulin", "homa_ir", "egfr", "urine_acr", null],
+          "description": "Somente para hemograma, perfil lipídico, 25-OH-vitamina D, glicemia, insulina e função renal, conforme a lista; null nos demais. Percentual e absoluto do diferencial são parâmetros separados."
         },
         "value_kind": { "enum": ["numeric", "qualitative"] },
         "value_number": { "type": ["number", "null"], "description": "Número normalizado (\"10.810\" = 10810; \"4,52\" = 4.52). null se qualitativo ou ilegível." },

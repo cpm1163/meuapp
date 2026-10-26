@@ -155,6 +155,22 @@ Fontes da amostra 1 em `tests/fixtures/private/bibliografia/` (fora do git), bai
 
 Primeiras fichas em [curated-meanings.json](../modules/clinical-considerations/curated-meanings.json) (rascunho de 26/10/2026, não validado por médico): HbA1c na faixa de pré-diabetes (SBD), HOMA-IR acima de 2,71 e associação com aterosclerose (revisão), G2 com A1 sem critério de DRC (KDIGO, p. S137), colesterol total acima do referencial (SBC, p. 14). Hemograma, pela revisão Riley e Rupert, Am Fam Physician 2015: leucócitos acima da referência sem atingir a definição usual de leucocitose em adultos, leucocitose reativa, eosinofilia pela contagem absoluta e linfócitos reduzidos só no percentual. Sem ficha na amostra 1, indo para o bloco da IA: insulina isolada, LDL e não-HDL (alvo depende do risco). Neutrofilia (> 7.700/µL) e causas alérgicas de eosinofilia leve vieram de StatPearls, "Leukocytosis" (Mank e Killeen, atualizado em 15/06/2026), salvo pelo usuário no navegador porque o NCBI bloqueia download automático (captcha). Os códigos hba1c, homa_ir, egfr e urine_acr ainda precisam entrar na extração.
 
+## Implementação do rascunho (26/10/2026, branch dev20)
+
+Decidido pelo usuário em 26/10/2026: o texto novo **substitui** as seções "Por tema" e "Comparação com diretrizes" no app e no PDF (o código dos tipos 1 e 2 fica no repositório até a validação); o rascunho é gerado por **botão** ("Gerar considerações"), uma vez por análise. Com isso, abrir uma análise deixou de chamar a IA do agrupamento por tema.
+
+**Restrição de custo (26/10/2026): nenhum custo extra.** Nada que gere cobrança (chamada de IA, reanálise, build EAS) acontece sem confirmação explícita do usuário. Tudo abaixo foi feito e testado localmente, com dados fictícios e respostas simuladas da IA.
+
+Feito em código:
+
+- Extração: códigos `fasting_glucose`, `hba1c`, `insulin`, `homa_ir`, `egfr` e `urine_acr` ([instructions.ts](../modules/lab-report/instructions.ts), versão `lab-report/3-instructions/4`; migração `20261026000100`).
+- Seleção das fichas: [meanings.ts](../modules/clinical-considerations/meanings.ts) (premissas por faixa na unidade da ficha ou por situação contra a referência impressa; idade e sexo do laudo, completados pelo cadastro). Números são proibidos no texto, exceto nomes de categoria (G2, A1, tipo 2).
+- Escrita e conferência: [writing.ts](../modules/clinical-considerations/writing.ts). A IA recebe idade, sexo, nomes, situação e fichas, nunca valores. Frases descartadas: sem ficha válida, com números, conduta ou certeza sobre o paciente, "elevado/reduzido" sem parâmetro daquele lado; no bloco sem fonte, também citação de diretriz ou sociedade e parâmetro fora da lista sem ficha.
+- Servidor: tabela `analysis_considerations` (rascunho original da IA, texto aprovado e data; migração `20261026000200`) e função `write-considerations` (reserva no banco, uma chamada, sem retentativa, fallback do servidor em recusa). Conferida com `deno check`.
+- App: seção com o botão, o rascunho marcado "Rascunho — não revisado", o bloco da IA em amarelo-areia, **Editar** (texto livre) e **Aprovar**; o PDF leva só o texto aprovado, com "Revisado pelo médico em <data>" e as referências.
+
+Falta, e só com confirmação do usuário: publicar as duas migrações e as funções `analyze-document`, `collect-analyses` e `write-considerations` (sem custo no plano gratuito do Supabase) e o teste real (1 reanálise da amostra 1 + 1 chamada das considerações, pagos com o saldo pré-pago da API).
+
 ## Tipo 1 — agrupamento por tema (23/10/2026)
 
 Decidido pelo usuário em 23/10/2026, depois de comparar com o relatório de exemplo: **a IA só agrupa, o código escreve**, e o agrupamento vem **automaticamente** com as considerações, sem botão.

@@ -2,7 +2,7 @@
 // Sent as the system prompt together with extraction.schema.json; the answer is validated against the schema in code.
 // Bump INSTRUCTIONS_VERSION whenever the text changes: it is recorded with each analysis.
 
-export const INSTRUCTIONS_VERSION = 'lab-report/3-instructions/3';
+export const INSTRUCTIONS_VERSION = 'lab-report/3-instructions/4';
 
 export const INSTRUCTIONS = `Você transcreve laudos de exames laboratoriais brasileiros para um JSON com esquema fixo.
 O resultado é conferido por um médico e por regras em código. Seu papel é só transcrever com exatidão.
@@ -35,9 +35,11 @@ Exames laboratoriais
 Parâmetros
 - name e unit como impressos. value_text exatamente como impresso.
 - value_kind "numeric" quando o resultado é número; value_number normalizado: no Brasil o ponto separa milhar e a vírgula separa decimal ("10.810" = 10810; "4,52" = 4.52). "qualitative" para resultados em texto ("Ausente", "Negativo"), com value_number null.
-- code: só para hemograma, perfil lipídico e 25-OH-vitamina D, conforme a lista do esquema; null nos demais. Percentual e absoluto do diferencial são parâmetros separados.
+- code: só para hemograma, perfil lipídico, 25-OH-vitamina D, glicemia, insulina e função renal, conforme a lista do esquema; null nos demais. Percentual e absoluto do diferencial são parâmetros separados.
   - Perfil lipídico: total_cholesterol (colesterol total), ldl_c (LDL colesterol, calculado ou direto), hdl_c (HDL colesterol), non_hdl_c (colesterol não-HDL), triglycerides (triglicérides), apob (apolipoproteína B). VLDL, lipoproteína(a) e relações (ex.: CT/HDL) ficam com code null.
   - 25-OH-vitamina D (25-hidroxivitamina D, vitamina D 25-OH): vitamin_d_25oh. A 1,25-di-hidroxivitamina D fica com code null.
+  - Glicemia e insulina: fasting_glucose (glicose ou glicemia de jejum), hba1c (hemoglobina glicada, HbA1c, em %), insulin (insulina de jejum), homa_ir (índice HOMA-IR). Glicose média estimada, glicose em curva (TTGO), glicose na urina e HOMA-beta ficam com code null.
+  - Função renal: egfr (taxa de filtração glomerular estimada, eGFR, TFGe), urine_acr (relação albumina/creatinina na urina, RAC). Creatinina, ureia e albumina urinária isolada ficam com code null.
 - lab_flag: marcação do próprio laboratório (cor, negrito, seta, asterisco, ícone): "above", "below" ou "within" quando a marcação indica isso; "none" quando não há marcação.
 - history: resultados anteriores impressos neste laudo, do mais recente ao mais antigo, com data AAAA-MM-DD.
 - page: página do resultado.
