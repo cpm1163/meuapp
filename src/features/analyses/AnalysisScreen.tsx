@@ -5,17 +5,19 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Action, styles } from '@/features/modules/ui';
 import { createDocumentService, type DocumentRecord } from '@/features/documents/service';
 import { createPatientService, patientError } from '@/features/patients/service';
-import { analysisError, createAnalysisService, failureText, type Analysis, type AnalysisSummary, type Grouping, type ModuleAccess, type Quota } from './service';
-import { buildThemes, themeLines, THEMES_NOTE, type Theme } from '../../../modules/clinical-considerations/grouping';
+import { analysisError, createAnalysisService, failureText, type Analysis, type AnalysisSummary, type ConsiderationsDraft, type ModuleAccess, type Quota } from './service';
+import curatedJson from '../../../modules/clinical-considerations/curated-meanings.json';
+import type { CuratedMeanings } from '../../../modules/clinical-considerations/meanings';
+import { DRAFT_NOTE, draftText, splitUnsourced, textBlocks, UNSOURCED_NOTE, UNSOURCED_TITLE, WRITING_DISCLAIMER } from '../../../modules/clinical-considerations/writing';
 import { DISCLAIMER, findingDetails, findingTitle, findingTone, groupFindings, reasonText, TONE_COLORS, TONE_NOTE } from './findings-text';
 import type { Finding } from '../../../modules/lab-report/findings';
-import { buildReport, formatDate as formatPrinted, searchConsiderations, searchExams, sexAgeText, sexText, STATUS_COLORS, type ReportExam } from './report';
-import type { ConsiderationsResult } from '../../../modules/clinical-considerations/considerations';
+import { buildReport, formatDate as formatPrinted, searchConsiderations, searchExams, sexAgeText, sexText, STATUS_COLORS, type ApprovedConsiderations, type ReportExam } from './report';
 import { shareReportPdf } from './share-report';
-import { CONSIDERATIONS_MODULE, considerationsFor } from './considerations';
-import { CONSIDERATIONS_DISCLAIMER } from '../../../modules/clinical-considerations/considerations';
+import { CONSIDERATIONS_MODULE } from './considerations';
 
 type Props = { documentId: string; accessToken: string };
+
+const curatedMeanings = curatedJson as unknown as CuratedMeanings;
 // A batch usually ends within the hour. Checking costs no AI tokens (it only reads the batch status).
 const POLL_MS = 30_000;
 const HISTORY_STATUSES: Record<Analysis['status'], string> = { processing: 'em andamento', ready: 'pronta', failed: 'falhou' };
@@ -82,10 +84,11 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
     return () => { show.remove(); hide.remove(); };
   }, [insets.bottom]);
   const [considerationsReady, setConsiderationsReady] = useState(false);
-  // Keyed by analysis, so a grouping never shows on another analysis while the next one loads.
-  const [groupingState, setGroupingState] = useState<{ analysisId: string; value: Grouping | null } | null>(null);
-  const [groupingBusy, setGroupingBusy] = useState(false);
-  const groupingStarted = useRef(new Set<string>());
+  // Keyed by analysis, so a draft never shows on another analysis while the next one loads.
+  const [draftState, setDraftState] = useState<{ analysisId: string; value: ConsiderationsDraft | null } | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  // Text being edited by the doctor, keyed by analysis; null when not editing.
+  const [editState, setEditState] = useState<{ analysisId: string; text: string } | null>(null);
   const scroll = useRef<ScrollView>(null);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
@@ -181,43 +184,32 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
       .catch(() => { if (active) setConsiderationsReady(false); });
     return () => { active = false; };
   }, [analyses]);
-  const considerations = useMemo(() => considerationsReady && report && shown?.extraction
-    ? considerationsFor(shown.extraction, report, document?.patient?.birth_date ?? null) : null,
-  [considerationsReady, report, shown, document]);
-  // Type 1: the grouping by theme comes with the considerations, without a button. The first time a ready analysis is
-  // opened the app asks the server for it; the server calls the AI at most once per analysis and keeps the result.
+  // Draft written by the AI from the meaning cards, started by the doctor with a button (one AI call per analysis).
+  // Opening an analysis only reads the stored row; it never calls the AI.
   const shownId = shown?.status === 'ready' ? shown.id : null;
+  const loadDraft = useCallback(async (analysisId: string) => {
+    const value = await analyses.considerationsDraft(analysisId);
+    if (mounted.current) setDraftState({ analysisId, value });
+  }, [analyses]);
   useEffect(() => {
     if (!considerationsReady || !shownId) return;
-    let active = true;
-    void (async () => {
-      try {
-        let current = await analyses.grouping(shownId);
-        if (!current && !groupingStarted.current.has(shownId)) {
-          groupingStarted.current.add(shownId);
-          if (active) setGroupingBusy(true);
-          await analyses.startGrouping(shownId).catch(() => null);
-          current = await analyses.grouping(shownId);
-        }
-        if (active) setGroupingState({ analysisId: shownId, value: current });
-      } catch { /* the type 2 considerations still show */ }
-      finally { if (active) setGroupingBusy(false); }
-    })();
-    return () => { active = false; };
-  }, [considerationsReady, shownId, analyses]);
-  const grouping = groupingState && groupingState.analysisId === shownId ? groupingState.value : null;
-  const themes = useMemo(() => report && grouping?.status === 'ready' && grouping.groups
-    ? buildThemes(grouping.groups, report.exams.flatMap((exam, examIndex) => exam.rows.map((row, rowIndex) =>
-      ({ id: `${examIndex}.${rowIndex}`, name: row.name, value: row.value, status: row.status })))) : null,
-  [report, grouping]);
+    loadDraft(shownId).catch(() => { /* the section shows the button again */ });
+  }, [considerationsReady, shownId, loadDraft]);
+  const draftRow = draftState && draftState.analysisId === shownId ? draftState.value : null;
+  const editing = editState && editState.analysisId === shownId ? editState.text : null;
+  const setEditing = (text: string | null) => setEditState(text === null || !shownId ? null : { analysisId: shownId, text });
+  const draftView = useMemo(() => draftRow?.status === 'ready' && draftRow.draft ? draftText(draftRow.draft, curatedMeanings) : null,
+    [draftRow]);
+  const approved = useMemo<ApprovedConsiderations | null>(() => draftView && draftRow?.approved_text && draftRow.approved_at
+    ? { text: draftRow.approved_text, approvedAt: draftRow.approved_at, references: draftView.references } : null,
+  [draftView, draftRow]);
   const searching = !!report && query.trim().length > 0;
   const found = useMemo(() => report && searching ? searchExams(report.exams, query) : [], [report, searching, query]);
   // While typing, the matches are shown from the top of the screen, so they are never hidden further down.
   useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [query]);
-  const foundConsiderations = useMemo(() => considerations && searching ? searchConsiderations(considerations, query) : null,
-    [considerations, searching, query]);
-  const foundCount = found.reduce((total, item) => total + item.exam.rows.length, 0)
-    + (foundConsiderations ? foundConsiderations.items.length + foundConsiderations.notCompared.length : 0);
+  const foundConsiderations = considerationsReady && searching
+    && searchConsiderations(approved?.text ?? draftView?.text ?? '', query);
+  const foundCount = found.reduce((total, item) => total + item.exam.rows.length, 0) + (foundConsiderations ? 1 : 0);
 
   // Completes only the sex; the other fields are sent back as they are in the record.
   async function fillRecordSex(sex: 'female' | 'male') {
@@ -237,41 +229,90 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
   async function sendReport() {
     if (!report || !shown || busy) return;
     setBusy(true); setError(''); setConfirmingSend(false);
-    try { await shareReportPdf(report, (report.collectedAt || shown.created_at).slice(0, 10), considerations, themes); }
+    try { await shareReportPdf(report, (report.collectedAt || shown.created_at).slice(0, 10), approved); }
     catch (e) {
       if (mounted.current) setError(e instanceof Error && e.message.startsWith('Este aparelho') ? e.message
         : 'Não foi possível gerar ou enviar o PDF. Tente novamente.');
     }
     finally { if (mounted.current) setBusy(false); }
   }
-  function renderConsiderations(section: ConsiderationsResult, sectionThemes: Theme[] | null) {
+  async function generateConsiderations() {
+    if (!shownId || draftBusy) return;
+    setDraftBusy(true); setError('');
+    try { await analyses.startConsiderations(shownId); }
+    catch { /* the stored row says whether it failed */ }
+    finally {
+      await loadDraft(shownId).catch(() => null);
+      if (mounted.current) setDraftBusy(false);
+    }
+  }
+
+  async function approveConsiderations(text: string) {
+    if (!shownId || draftBusy || !text.trim()) return;
+    setDraftBusy(true); setError('');
+    try {
+      await analyses.approveConsiderations(shownId, text);
+      await loadDraft(shownId);
+      if (mounted.current) setEditing(null);
+    } catch { if (mounted.current) setError('Não foi possível aprovar as considerações. Tente novamente.'); }
+    finally { if (mounted.current) setDraftBusy(false); }
+  }
+
+  // Blocks of the text; the part after the title of the block without source is shown apart, in sand.
+  function renderConsiderationsText(text: string) {
+    const blocks = (part: string) => textBlocks(part).map((block, index) => <View key={index} style={{ gap: 2, paddingTop: 6 }}>
+      {!!block.title && <Text style={[styles.subtitle, { fontWeight: '600' }]}>{block.title}</Text>}
+      <Text style={styles.subtitle}>{block.body}</Text>
+    </View>);
+    const { sourced, unsourced } = splitUnsourced(text);
+    return <>
+      {blocks(sourced)}
+      {unsourced !== null && <View style={{ gap: 2, padding: 10, borderRadius: 10, backgroundColor: TONE_COLORS.check.background,
+        borderWidth: 1, borderColor: TONE_COLORS.check.border }}>
+        <Text style={[styles.subtitle, { fontWeight: '700', color: TONE_COLORS.check.text }]}>{UNSOURCED_TITLE}</Text>
+        <Text style={styles.hint}>{UNSOURCED_NOTE}</Text>
+        {blocks(unsourced)}
+      </View>}
+    </>;
+  }
+
+  function renderConsiderations() {
+    const status = draftRow?.status;
+    const text = approved?.text ?? draftView?.text ?? '';
     return <View style={styles.card}>
       <Text style={styles.cardTitle}>Considerações clínicas</Text>
-      <Text style={[styles.hint, { backgroundColor: '#F0EFF5', padding: 8, borderRadius: 8, overflow: 'hidden' }]}>{CONSIDERATIONS_DISCLAIMER}</Text>
-      {groupingBusy && <Text style={styles.hint}>Agrupando por tema…</Text>}
-      {!!sectionThemes && sectionThemes.length > 0 && <View style={{ gap: 4 }}>
-        <Text style={[styles.subtitle, { fontWeight: '700' }]}>Por tema</Text>
-        <Text style={styles.hint}>{THEMES_NOTE}</Text>
-        {sectionThemes.map((theme, index) => <View key={index} style={{ gap: 2, paddingTop: 6 }}>
-          <Text style={[styles.subtitle, { fontWeight: '600' }]}>{theme.title}</Text>
-          {themeLines(theme).map(line => <Text key={line} style={styles.subtitle}>{line}</Text>)}
-        </View>)}
-      </View>}
-      <Text style={[styles.subtitle, { fontWeight: '700', paddingTop: 8 }]}>Comparação com diretrizes</Text>
-      {section.items.length === 0 && <Text style={styles.subtitle}>Nenhum parâmetro deste laudo tem diretriz selecionada para comparação.</Text>}
-      {section.items.map((item, index) => <View key={index} style={{ gap: 2, paddingTop: 8, borderTopWidth: index ? 1 : 0, borderTopColor: '#EEEBFA' }}>
-        <Text style={[styles.subtitle, { fontWeight: '600' }]}>{item.title}</Text>
-        {item.lines.map((line, lineIndex) => <Text key={lineIndex} style={styles.subtitle}>{line.text} [{line.reference}]</Text>)}
-        {item.caveats.map(caveat => <Text key={caveat} style={styles.hint}>{caveat}</Text>)}
-      </View>)}
-      {section.notCompared.length > 0 && <View style={{ gap: 2, paddingTop: 8 }}>
-        <Text style={[styles.subtitle, { fontWeight: '600' }]}>Sem comparação</Text>
-        {section.notCompared.map((item, index) => <Text key={index} style={styles.hint}>{item.title}: {item.reason}.</Text>)}
-      </View>}
-      {section.references.length > 0 && <View style={{ gap: 4, paddingTop: 8 }}>
+      <Text style={[styles.hint, { backgroundColor: '#F0EFF5', padding: 8, borderRadius: 8, overflow: 'hidden' }]}>{WRITING_DISCLAIMER}</Text>
+      {!draftRow && !draftBusy && <>
+        <Text style={styles.subtitle}>A IA escreve um rascunho com o significado dos resultados, a partir da bibliografia selecionada pelo app. Você revisa, edita se quiser e aprova.</Text>
+        <Text style={styles.hint}>Usa 1 chamada de IA, uma única vez por análise.</Text>
+        <Action title="Gerar considerações" disabled={busy} onPress={() => void generateConsiderations()} />
+      </>}
+      {(draftBusy || status === 'processing') && editing === null && <Text style={styles.hint}>Aguarde… o rascunho pode levar até um minuto.</Text>}
+      {status === 'processing' && !draftBusy && <Action title="Verificar" onPress={() => void (shownId && loadDraft(shownId).catch(() => null))} />}
+      {status === 'failed' && <Text style={styles.subtitle}>Não foi possível gerar o rascunho ({draftRow?.failure_reason}).</Text>}
+      {status === 'ready' && editing !== null && <>
+        <Text style={styles.hint}>Edite livremente. Para o bloco sem fonte continuar destacado, mantenha a linha “{UNSOURCED_TITLE}”.</Text>
+        <TextInput style={[styles.input, { minHeight: 220, textAlignVertical: 'top' }]} multiline value={editing}
+          onChangeText={setEditing} editable={!draftBusy} accessibilityLabel="Texto das considerações clínicas" />
+        <View style={styles.actions}>
+          <Action title="Aprovar" disabled={draftBusy || !editing.trim()} onPress={() => void approveConsiderations(editing)} />
+          <Action title="Cancelar" disabled={draftBusy} onPress={() => setEditing(null)} />
+        </View>
+      </>}
+      {status === 'ready' && editing === null && <>
+        {approved
+          ? <Text style={[styles.hint, { color: STATUS_COLORS.within.text, fontWeight: '600' }]}>Revisado pelo médico em {new Date(approved.approvedAt).toLocaleDateString('pt-BR')}. Só este texto vai para o PDF.</Text>
+          : <Text style={[styles.hint, { backgroundColor: TONE_COLORS.check.background, color: TONE_COLORS.check.text, padding: 8,
+            borderRadius: 8, overflow: 'hidden', fontWeight: '600' }]}>{DRAFT_NOTE}</Text>}
+        {text ? renderConsiderationsText(text) : <Text style={styles.subtitle}>Nenhum achado com significado para descrever.</Text>}
+        {!!text && <View style={styles.actions}>
+          <Action title="Editar" disabled={draftBusy} onPress={() => setEditing(text)} />
+          {!approved && <Action title="Aprovar" disabled={draftBusy} onPress={() => void approveConsiderations(text)} />}
+        </View>}
+      </>}
+      {!!draftView && draftView.references.length > 0 && <View style={{ gap: 4, paddingTop: 8 }}>
         <Text style={[styles.subtitle, { fontWeight: '600' }]}>Referências bibliográficas</Text>
-        {section.references.map(item => <Text key={item.number} style={styles.hint} accessibilityRole="link"
-          onPress={() => void Linking.openURL(item.url)}>{item.number}. {item.text}</Text>)}
+        {draftView.references.map((item, index) => <Text key={index} style={styles.hint}>{index + 1}. {item}</Text>)}
       </View>}
     </View>;
   }
@@ -378,7 +419,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
           ? `${foundCount} ${foundCount === 1 ? 'resultado' : 'resultados'} para “${query.trim()}”`
           : `Nada encontrado para “${query.trim()}”`}</Text>
         {found.map(({ exam, index }) => renderExam(exam, index))}
-        {!!foundConsiderations && renderConsiderations(foundConsiderations, foundConsiderations === considerations ? themes : null)}
+        {foundConsiderations && renderConsiderations()}
       </>}
 
       {!loading && !searching && shown?.status === 'ready' && report && <>
@@ -422,7 +463,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
 
         <Text style={styles.cardTitle}>Resultados por exame</Text>
         {report.exams.map((exam, examIndex) => renderExam(exam, examIndex))}
-        {!!considerations && renderConsiderations(considerations, themes)}
+        {considerationsReady && renderConsiderations()}
         {report.otherExams.length > 0 && <View style={styles.card}>
           <Text style={styles.cardTitle}>Não analisados</Text>
           <Text style={styles.subtitle}>{report.otherExams.join(' · ')}</Text>

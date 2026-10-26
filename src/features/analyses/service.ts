@@ -1,6 +1,7 @@
 import { createClient, FunctionsHttpError } from '@supabase/supabase-js';
 import type { Extraction, Finding } from '../../../modules/lab-report/findings';
 import type { Group } from '../../../modules/clinical-considerations/grouping';
+import type { Draft } from '../../../modules/clinical-considerations/writing';
 
 export const MODULE_ID = 'lab-report';
 
@@ -28,6 +29,10 @@ export class AnalysisError extends Error {
 // Each operation stays bound to the session that initiated it, even during account switches.
 // The app never calls the AI: the Edge Functions hold the key and the database authorizes each analysis.
 export type Grouping = { status: 'processing' | 'ready' | 'failed'; groups: Group[] | null; failure_reason: string | null };
+export type ConsiderationsDraft = {
+  status: 'processing' | 'ready' | 'failed'; draft: Draft | null; failure_reason: string | null;
+  approved_text: string | null; approved_at: string | null;
+};
 
 export function createAnalysisService(accessToken: string) {
   const client = createClient(
@@ -84,6 +89,21 @@ export function createAnalysisService(accessToken: string) {
     },
     /** Asks the server to group a ready analysis; it calls the AI at most once per analysis. */
     startGrouping: (analysisId: string) => invoke('group-analysis', { analysis_id: analysisId }),
+    /** The draft of the clinical considerations of an analysis, or null if the doctor has not asked for it. */
+    async considerationsDraft(analysisId: string): Promise<ConsiderationsDraft | null> {
+      const { data, error } = await client.from('analysis_considerations')
+        .select('status, draft, failure_reason, approved_text, approved_at').eq('analysis_id', analysisId).maybeSingle();
+      if (error) throw error;
+      return data as ConsiderationsDraft | null;
+    },
+    /** Asks the server to write the draft; it calls the AI at most once per analysis. */
+    startConsiderations: (analysisId: string) => invoke('write-considerations', { analysis_id: analysisId }),
+    /** Records the doctor's text, edited or not; only the approved text goes to the PDF. */
+    async approveConsiderations(analysisId: string, text: string): Promise<string> {
+      const { data, error } = await client.rpc('approve_analysis_considerations', { analysis_id: analysisId, text });
+      if (error) throw new AnalysisError(error.message);
+      return data as string;
+    },
     /** Whether a level B add-on module (e.g. 'clinical-considerations') can be shown to this account. */
     async moduleReady(moduleId: string): Promise<boolean> {
       const { data, error } = await client.rpc('my_modules');

@@ -262,3 +262,127 @@ test('grouping: themes are written in code from the report statuses', () => {
   ]);
 });
 
+
+// Meaning cards (curated-meanings.json): fictitious report with the values of sample 1 (man, 63 years).
+const meanings = load('modules/clinical-considerations/meanings.ts');
+const curatedMeanings = JSON.parse(fs.readFileSync('modules/clinical-considerations/curated-meanings.json', 'utf8'));
+const ranged = (code, value, unit, low, high, name = code) => ({
+  ...parameter(code, value, unit, name),
+  reference: {kind: low !== null && high !== null ? 'range' : high !== null ? 'upper_limit' : 'lower_limit', text: '',
+    low, low_inclusive: true, high, high_inclusive: true, expected: [], rows: []},
+});
+const sampleLike = () => extraction(FASTING[null],
+  ranged('wbc', 10810, '/µL', 4000, 10000, 'Leucócitos'),
+  ranged('neutrophils_abs', 7816, '/µL', 1800, 7800, 'Neutrófilos'),
+  ranged('eosinophils_abs', 508, '/µL', 20, 500, 'Eosinófilos'),
+  ranged('lymphocytes_pct', 14.5, '%', 20, 40, 'Linfócitos'),
+  ranged('lymphocytes_abs', 1567, '/µL', 1000, 3000, 'Linfócitos'),
+  ranged('hba1c', 5.7, '%', null, 5.6, 'Hemoglobina Glicada - HbA1c'),
+  ranged('insulin', 33.8, 'µUI/mL', 2.5, 13.1, 'Insulina'),
+  ranged('homa_ir', 7, '', null, 2.7, 'HOMA-IR'),
+  ranged('egfr', 79, 'mL/min/1,73m²', 90, null, 'eGFR'),
+  ranged('urine_acr', 2.13, 'mg/g de creatinina', null, 30, 'Relação Albumina/Creatinina'),
+  ranged('total_cholesterol', 261, 'mg/dL', null, 190, 'Colesterol Total'),
+  ranged('ldl_c', 185, 'mg/dL', null, 130, 'LDL - Colesterol'));
+
+test('meanings file has no structural problems', () => {
+  assert.deepEqual(meanings.checkMeanings(curatedMeanings), []);
+});
+
+test('sample-like report selects the expected cards and leaves insulin and LDL to the AI block', () => {
+  const {selected, unexplained} = meanings.selectMeanings(sampleLike(), {sex: 'male', age: ageFromYears(63)}, curatedMeanings);
+  assert.deepEqual(selected.map(item => item.id), [
+    'sbd-hba1c-pre-diabetes', 'geloneze-homa-ir-ri', 'geloneze-ri-aterosclerose', 'kdigo-g2-sem-lesao',
+    'sbc-colesterol-aterosclerose', 'riley-wbc-abaixo-de-leucocitose', 'riley-eosinofilia', 'riley-linfocitos-so-percentual',
+    'statpearls-neutrofilia', 'statpearls-eosinofilia-alergica']);
+  assert.deepEqual(unexplained.map(item => item.name), ['Insulina', 'LDL - Colesterol']);
+  const kidney = selected.find(item => item.id === 'kdigo-g2-sem-lesao');
+  assert.deepEqual(kidney.parameters.map(item => [item.name, item.status]), [['eGFR', 'below'], ['Relação Albumina/Creatinina', 'within']]);
+  for (const item of selected) for (const named of item.parameters) assert.equal(named.value_number, undefined, 'no values go to the AI');
+});
+
+test('a card needs every premise, the right unit and the population', () => {
+  const run = (patient, ...items) => meanings.selectMeanings(extraction(FASTING[null], ...items), patient, curatedMeanings)
+    .selected.map(item => item.id);
+  const man = {sex: 'male', age: ageFromYears(63)};
+  // G2 without the albuminuria: the kidney card cannot say there is no damage marker.
+  assert.ok(!run(man, ranged('egfr', 79, 'mL/min/1,73m²', 90, null)).includes('kdigo-g2-sem-lesao'));
+  // Albuminuria in another unit is not compared.
+  assert.ok(!run(man, ranged('egfr', 79, 'mL/min/1,73m²', 90, null), ranged('urine_acr', 2, 'mg/mmol', null, 3))
+    .includes('kdigo-g2-sem-lesao'));
+  // Leukocytes within the printed reference: the "above the reference" card does not hold.
+  assert.ok(!run(man, ranged('wbc', 9000, '/µL', 4000, 10000)).includes('riley-wbc-abaixo-de-leucocitose'));
+  // Children and unknown age get no adult cards.
+  assert.deepEqual(run({sex: 'male', age: ageFromYears(10)}, ranged('homa_ir', 7, '', null, 2.7)), []);
+  assert.deepEqual(run({sex: 'male', age: null}, ranged('homa_ir', 7, '', null, 2.7)), []);
+});
+
+test('category names are not numbers; values are', () => {
+  assert.equal(meanings.hasNumbers('Categoria G2 do KDIGO, albuminúria A1, risco de diabetes tipo 2'), false);
+  assert.equal(meanings.hasNumbers('Categoria G3a'), false);
+  assert.equal(meanings.hasNumbers('LDL de 185'), true);
+  assert.equal(meanings.hasNumbers('HbA1c elevada'), true, 'HbA1c is not a category label: write "hemoglobina glicada"');
+});
+
+// Draft written by the AI (writing.ts), checked in code. AI answers are simulated: no API call in tests.
+const writing = load('modules/clinical-considerations/writing.ts');
+const sampleSelection = () => meanings.selectMeanings(sampleLike(), {sex: 'male', age: ageFromYears(63)}, curatedMeanings);
+const answer = (paragraphs, unsourced = []) => JSON.stringify({paragraphs, unsourced});
+const sentence = (text, card_ids) => ({text, card_ids});
+
+test('the AI input carries names, situations and cards, never values', () => {
+  const input = writing.writingInput(sampleSelection(), {sex: 'male', age_years: 63});
+  const text = JSON.stringify(input);
+  for (const value of ['10810', '7816', '33.8', '33,8', '261', '185', '2.13']) assert.ok(!text.includes(value), value);
+  assert.deepEqual(input.without_card.map(item => item.name), ['Insulina', 'LDL - Colesterol']);
+  assert.equal(input.without_card[0].situation, 'acima da referência impressa');
+});
+
+test('good sentences pass; numbers, conduct, unknown cards and the wrong side are dropped', () => {
+  const draft = writing.validateDraft(answer([{theme: 'Metabolismo glicêmico', sentences: [
+    sentence('A hemoglobina glicada na faixa de pré-diabetes, junto com o HOMA-IR elevado, é compatível com resistência à insulina.',
+      ['sbd-hba1c-pre-diabetes', 'geloneze-homa-ir-ri']),
+    sentence('A hemoglobina glicada de 5,7% está na faixa de pré-diabetes.', ['sbd-hba1c-pre-diabetes']),
+    sentence('Recomenda-se repetir o exame.', ['sbd-hba1c-pre-diabetes']),
+    sentence('Compatível com síndrome metabólica.', ['ficha-inexistente']),
+    sentence('A hemoglobina glicada está reduzida.', ['sbd-hba1c-pre-diabetes']),
+    sentence('Sem ficha nenhuma.', []),
+  ]}, {theme: 'Função renal', sentences: [
+    sentence('A filtração na categoria G2, com albuminúria A1, não preenche o critério de doença renal crônica.', ['kdigo-g2-sem-lesao']),
+  ]}]), sampleSelection());
+  assert.deepEqual(draft.paragraphs.map(item => [item.theme, item.sentences.length]), [['Metabolismo glicêmico', 1], ['Função renal', 1]]);
+  assert.equal(draft.dropped, 5);
+});
+
+test('the block without source names only results without card and cites nothing', () => {
+  const draft = writing.validateDraft(answer([], [
+    {text: 'A insulina elevada pode estar associada a menor sensibilidade à insulina.', parameters: ['Insulina']},
+    {text: 'Segundo a diretriz da SBC, o LDL elevado aumenta o risco.', parameters: ['LDL - Colesterol']},
+    {text: 'O colesterol total elevado pode estar associado a aterosclerose.', parameters: ['Colesterol Total']},
+    {text: 'A insulina reduzida pode estar associada a menor produção.', parameters: ['Insulina']},
+  ]), sampleSelection());
+  assert.deepEqual(draft.unsourced.map(item => item.parameters), [['Insulina']]);
+  assert.equal(draft.dropped, 3);
+});
+
+test('an answer that is not the expected JSON is rejected', () => {
+  assert.equal(writing.validateDraft('não é JSON', sampleSelection()), null);
+  assert.equal(writing.validateDraft('{"paragraphs": []}', sampleSelection()), null);
+});
+
+test('the draft becomes editable text with references by source and page, reviews marked as such', () => {
+  const {text, references} = writing.draftText({paragraphs: [
+    {theme: 'Metabolismo glicêmico', sentences: [
+      sentence('A hemoglobina glicada está na faixa de pré-diabetes.', ['sbd-hba1c-pre-diabetes']),
+      sentence('O HOMA-IR elevado é compatível com resistência à insulina, associada à aterosclerose.',
+        ['geloneze-homa-ir-ri', 'geloneze-ri-aterosclerose'])]},
+    {theme: 'Função renal', sentences: [sentence('Categoria G2 sem critério de doença renal crônica.', ['kdigo-g2-sem-lesao'])]},
+  ], unsourced: [{text: 'A insulina elevada pode estar associada a menor sensibilidade à insulina.', parameters: ['Insulina']}], dropped: 0},
+  curatedMeanings);
+  assert.equal(references.length, 4, 'two pages of the same review are two references');
+  assert.ok(references[1].includes('p. 211') && references[1].endsWith('(revisão, não diretriz)'));
+  assert.ok(text.includes('pré-diabetes. [1]') && text.includes('aterosclerose. [2][3]') && text.includes('crônica. [4]'));
+  const parts = writing.splitUnsourced(text);
+  assert.ok(parts.sourced.startsWith('Metabolismo glicêmico') && !parts.sourced.includes('Insulina elevada'));
+  assert.equal(parts.unsourced, 'A insulina elevada pode estar associada a menor sensibilidade à insulina.');
+});
