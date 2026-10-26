@@ -80,6 +80,81 @@ Mantém a abordagem híbrida da FASE 03: a IA produz o conteúdo, e o código co
 5. **Idade e sexo.** A IA recebe só idade e sexo, nunca nome ou CPF, como no PDF atual.
 6. **Aviso.** A tela e o PDF dizem que a seção é apoio à interpretação do médico assistente, não laudo nem diagnóstico.
 
+## Expectativa do usuário (23/10/2026, fim do dia) — retomar daqui
+
+Conversa de alinhamento depois do teste do tipo 1. **O formato atual (frases montadas pelo código, com cara de tabela) não é o esperado.** O que o usuário espera das considerações:
+
+1. **Texto corrido, escrito pela IA**, como um médico escreveria: "o colesterol total e o LDL estão elevados", e não a lista de valores, que já está nas tabelas.
+2. **A constatação segue a referência impressa no próprio laudo** para o sexo e a idade do paciente (a mesma classificação do nível A, que dá as cores).
+3. **Depois da constatação, o enquadramento que a literatura dá ao achado**: em que categoria o valor cai e que grau de comprometimento ele representa (ex.: HbA1c de 5,7% no limite inferior da faixa de risco aumentado para diabetes da SBD; LDL de 185 perto do corte de 190 mg/dL da SBC 2025). Não é hipótese sobre o paciente nem conduta.
+4. **Números podem aparecer como apoio**, mas o que importa é o que eles significam.
+
+Consequências combinadas:
+
+- A IA escreve; **o código confere cada afirmação**: a situação dita (alto, baixo, dentro) tem de bater com a classificação do código, e os números e fontes têm de bater com o laudo e com a bibliografia curada. Frase que não bate é descartada.
+- **O enquadramento da literatura só pode vir da bibliografia curada**, com trecho e página. A qualidade das considerações passa a depender dela: **ampliar a bibliografia, sobretudo para adultos** (SBD para glicemia e HbA1c, SBEM/SBPC para vitamina D, categorias da SBC, gravidade da anemia da OMS etc.), vira a tarefa principal.
+- Isso se aproxima de diagnóstico (enquadramento clínico): em teste com a conta do usuário, sim; para outros médicos, só depois da consulta regulatória e, de preferência, do médico parceiro.
+- O que já existe continua como base: comparador, bibliografia curada, conferência pelo código e o agrupamento por tema (que pode virar a estrutura dos parágrafos). Muda a última camada: o texto passa a ser da IA, conferido pelo código.
+
+Próximos passos ao retomar: (1) desenhar o formato da saída da IA (parágrafo por tema, com as afirmações marcadas para a conferência); (2) ampliar a bibliografia curada para os temas de adultos da amostra 1; (3) implementar e testar com a amostra 1. Ainda falta ver o primeiro agrupamento por tema rodar com dados reais (função `group-analysis` publicada em 23/10/2026, não exercitada).
+
+## Leitura do estado do paciente, como rascunho do médico (26/10/2026)
+
+Decidido pelo usuário em 26/10/2026. As considerações passam a ser uma **análise sucinta do estado do paciente a partir dos resultados** (interpretação clínica, nível B completo), sob quatro condições:
+
+1. **Só para o médico**, nunca para o paciente.
+2. **É um rascunho**: o médico lê, pode corrigir e assume o texto.
+3. **Tudo com fonte**: cada afirmação apoiada na bibliografia curada e conferida pelo código.
+4. **Só na conta de teste** até a consulta regulatória e a avaliação do médico parceiro.
+
+Conduta e prescrição continuam fora.
+
+Fluxo do rascunho:
+
+- **A IA gera uma vez** e o texto aparece marcado "Rascunho — não revisado". Frases que o código não confere saem do texto. **Não há "gerar de novo"**: o foco é a edição pelo médico.
+- **O médico pode editar o texto livremente e apagar frases**, se achar necessário. Editar é opcional.
+- **O PDF só leva as considerações depois do toque em "Aprovar"**, com ou sem edição. Sem aprovação, o PDF sai só com os pontos de atenção e as tabelas.
+- A aprovação registra que o médico leu e assumiu o texto ("Revisado pelo médico em <data>"). O app guarda a versão original da IA e a aprovada, para auditoria.
+
+### Significado, não constatação (26/10/2026)
+
+Decidido pelo usuário em 26/10/2026, **mudando o item 3 de 23/10** (que excluía hipóteses). Constatar ("LDL elevado", "insulina elevada") não basta: as considerações dizem **o que o conjunto dos resultados significa**, **sem repetir números** (já estão nas tabelas). Exemplo aprovado pelo usuário:
+
+> A hemoglobina glicada na faixa de risco aumentado, junto com a insulina elevada, é compatível com resistência à insulina, situação que a SBD associa a maior risco de progressão para diabetes tipo 2 [1]. Somada ao LDL elevado, compõe um perfil de risco cardiometabólico aumentado [2]. A discreta elevação de leucócitos, isolada, tem pouco significado clínico e costuma acompanhar processos inflamatórios ou alérgicos transitórios [3]. A filtração renal levemente reduzida corresponde à categoria G2 do KDIGO, que só caracteriza doença renal crônica se persistir por mais de 3 meses ou vier com outro marcador de lesão renal [4].
+
+Regras para as hipóteses:
+
+- **Todo significado vem da bibliografia curada**, com trecho e página; a IA não infere significado sem fonte.
+- **Linguagem de hipótese**: "compatível com", "associado a", nunca "o paciente tem".
+- **O código confere as premissas** de cada frase (ex.: "insulina elevada" exige insulina acima da referência).
+- **Continuam fora**: conduta, exames a pedir e tratamento.
+- Valem as quatro condições acima (só médico, rascunho aprovado, fonte em tudo, só a conta de teste).
+
+Consequência: a bibliografia curada precisa trazer, além das faixas, **o significado dos conjuntos** (ex.: quando glicada e insulina elevadas indicam resistência à insulina; categorias G do KDIGO; leucocitose isolada). O exemplo acima é ilustrativo: cada significado só entra com trecho e página verificados na fonte.
+
+### Formato da saída: o código escolhe o que pode ser dito, a IA escreve (26/10/2026)
+
+Aprovado pelo usuário em 26/10/2026.
+
+1. **Fichas de significado na bibliografia curada**, além das faixas: premissas (ex.: glicada na faixa de risco aumentado + insulina acima da referência), texto-base do significado, fonte, página e trecho.
+2. **O código seleciona as fichas aplicáveis**: só as que têm todas as premissas confirmadas pelos resultados vão para a IA.
+3. **A IA escreve o texto corrido**, um parágrafo por tema, usando só essas fichas, e indica a ficha que apoia cada frase.
+4. **O código confere cada frase** e descarta a que: não indica ficha aplicável; tem números; fala de exame fora das premissas; diz "elevado/reduzido" em desacordo com a classificação; traz conduta (solicitar, tratar, iniciar, recomenda-se…). As referências [n] são postas pelo código a partir das fichas.
+5. O resultado vira o **rascunho** que o médico edita e aprova.
+
+**Resultado alterado sem ficha: análise da IA, separada e declarada.** O texto tem duas partes, nunca misturadas:
+
+- **Com base na bibliografia curada**: o texto principal, com referências verificadas.
+- **Análise da IA, sem fonte verificada**: bloco à parte, com outra cor e o aviso "Os achados abaixo não têm significado na bibliografia selecionada pelo app. O texto foi escrito pela IA com base em conhecimento geral e não foi conferido em diretriz."
+
+Travas do bloco da IA: **não cita referências** (risco de referência inventada); o código confere premissas, ausência de números e de conduta; linguagem de hipótese ("pode estar associado a…"); **cada uso é registrado como candidato a ficha**, para orientar a ampliação da bibliografia. O bloco pode ser desligado sozinho se a consulta regulatória pedir.
+
+**Temas sem diretriz formal (hemograma), decidido em 26/10/2026: os dois.** Revisões publicadas (ex.: StatPearls, JAAPA 2026 sobre leucocitose) podem sustentar fichas, identificadas como revisão e não diretriz; o que nem a revisão sustentar vai para o bloco da IA.
+
+Fontes da amostra 1 em `tests/fixtures/private/bibliografia/` (fora do git), baixadas em 26/10/2026: KDIGO 2024 (CKD, Kidney Int 105(4S)), SBC 2025 (dislipidemias) e o capítulo público "Diagnóstico de diabetes mellitus" da Diretriz SBD (revisão de 09/07/2024, DOI 10.29327/5412848.2024-1; o PDF completo da edição 2025 é protegido). Para HOMA-IR, a revisão Geloneze e Tambascia, Arq Bras Endocrinol Metab 2006 (corte 2,71 do estudo BRAMS, p. 211).
+
+Primeiras fichas em [curated-meanings.json](../modules/clinical-considerations/curated-meanings.json) (rascunho de 26/10/2026, não validado por médico): HbA1c na faixa de pré-diabetes (SBD), HOMA-IR acima de 2,71 e associação com aterosclerose (revisão), G2 com A1 sem critério de DRC (KDIGO, p. S137), colesterol total acima do referencial (SBC, p. 14). Hemograma, pela revisão Riley e Rupert, Am Fam Physician 2015: leucócitos acima da referência sem atingir a definição usual de leucocitose em adultos, leucocitose reativa, eosinofilia pela contagem absoluta e linfócitos reduzidos só no percentual. Sem ficha na amostra 1, indo para o bloco da IA: insulina isolada, LDL e não-HDL (alvo depende do risco). Neutrofilia (> 7.700/µL) e causas alérgicas de eosinofilia leve vieram de StatPearls, "Leukocytosis" (Mank e Killeen, atualizado em 15/06/2026), salvo pelo usuário no navegador porque o NCBI bloqueia download automático (captcha). Os códigos hba1c, homa_ir, egfr e urine_acr ainda precisam entrar na extração.
+
 ## Tipo 1 — agrupamento por tema (23/10/2026)
 
 Decidido pelo usuário em 23/10/2026, depois de comparar com o relatório de exemplo: **a IA só agrupa, o código escreve**, e o agrupamento vem **automaticamente** com as considerações, sem botão.
