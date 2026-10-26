@@ -7,7 +7,8 @@ import { createDocumentService, type DocumentRecord } from '@/features/documents
 import { createPatientService, patientError } from '@/features/patients/service';
 import { analysisError, createAnalysisService, failureText, type Analysis, type AnalysisSummary, type Grouping, type ModuleAccess, type Quota } from './service';
 import { buildThemes, themeLines, THEMES_NOTE, type Theme } from '../../../modules/clinical-considerations/grouping';
-import { DISCLAIMER, findingDetails, findingTitle, groupFindings, reasonText } from './findings-text';
+import { DISCLAIMER, findingDetails, findingTitle, findingTone, groupFindings, reasonText, TONE_COLORS, TONE_NOTE } from './findings-text';
+import type { Finding } from '../../../modules/lab-report/findings';
 import { buildReport, formatDate as formatPrinted, searchConsiderations, searchExams, sexAgeText, sexText, STATUS_COLORS, type ReportExam } from './report';
 import type { ConsiderationsResult } from '../../../modules/clinical-considerations/considerations';
 import { shareReportPdf } from './share-report';
@@ -275,6 +276,25 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
     </View>;
   }
 
+  // One card per point of attention, colored by the side of the reference (findingTone), under its group title.
+  function renderFindings(findings: Finding[]) {
+    if (findings.length === 0) return <Text style={styles.empty}>Nenhum ponto de atenção encontrado.</Text>;
+    return <>
+      <Text style={styles.hint}>{TONE_NOTE}</Text>
+      {groupFindings(findings).map(group => <View key={group.kind} style={{ gap: 8 }}>
+        <Text style={[styles.subtitle, { fontWeight: '600', color: '#24253D' }]}>{group.title} ({group.items.length})</Text>
+        {group.items.map((finding, index) => {
+          const tone = TONE_COLORS[findingTone(finding)];
+          return <View key={index} style={[styles.card, { gap: 2, backgroundColor: tone.background, borderWidth: 1, borderColor: tone.border }]}>
+            <Text style={[styles.subtitle, { fontWeight: '600', color: '#24253D' }]}>{findingTitle(finding)}</Text>
+            <Text style={[styles.subtitle, { fontWeight: '600', color: tone.text }]}>{reasonText(finding)}</Text>
+            {findingDetails(finding).map(line => <Text key={line} style={styles.hint}>{line}</Text>)}
+          </View>;
+        })}
+      </View>)}
+    </>;
+  }
+
   function renderExam(exam: ReportExam, examIndex: number) {
     return <View key={examIndex} style={styles.card}>
       <Text style={styles.cardTitle}>{exam.name}</Text>
@@ -398,15 +418,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
         </View>
 
         <Text style={styles.cardTitle}>Pontos de atenção</Text>
-        {report.highlights.length === 0 && <Text style={styles.empty}>Nenhum ponto de atenção encontrado.</Text>}
-        {groupFindings(report.highlights).map(group => <View key={group.kind} style={styles.card}>
-          <Text style={styles.cardTitle}>{group.title} ({group.items.length})</Text>
-          {group.items.map((finding, index) => <View key={index} style={{ gap: 2, paddingTop: index ? 10 : 0 }}>
-            <Text style={[styles.subtitle, { fontWeight: '600' }]}>{findingTitle(finding)}</Text>
-            <Text style={styles.subtitle}>{reasonText(finding)}</Text>
-            {findingDetails(finding).map(line => <Text key={line} style={styles.hint}>{line}</Text>)}
-          </View>)}
-        </View>)}
+        {renderFindings(report.highlights)}
 
         <Text style={styles.cardTitle}>Resultados por exame</Text>
         {report.exams.map((exam, examIndex) => renderExam(exam, examIndex))}
@@ -421,15 +433,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
         <View style={styles.card}>
           <Text style={styles.subtitle}>{DISCLAIMER}</Text>
         </View>
-        {(shown.findings ?? []).length === 0 && <Text style={styles.empty}>Nenhum ponto de atenção encontrado.</Text>}
-        {groupFindings(shown.findings ?? []).map(group => <View key={group.kind} style={styles.card}>
-          <Text style={styles.cardTitle}>{group.title} ({group.items.length})</Text>
-          {group.items.map((finding, index) => <View key={index} style={{ gap: 2, paddingTop: index ? 10 : 0 }}>
-            <Text style={[styles.subtitle, { fontWeight: '600' }]}>{findingTitle(finding)}</Text>
-            <Text style={styles.subtitle}>{reasonText(finding)}</Text>
-            {findingDetails(finding).map(line => <Text key={line} style={styles.hint}>{line}</Text>)}
-          </View>)}
-        </View>)}
+        {renderFindings(shown.findings ?? [])}
       </>}
 
       {!loading && !searching && history.length > 1 && <View style={styles.card}>

@@ -20,7 +20,7 @@ const REASONS: Record<string, string> = {
   below_reference: 'Abaixo da referência',
   not_expected_value: 'Diferente do valor esperado',
   flagged_by_lab: 'Marcado pelo laboratório',
-  clinical_category: 'A referência depende de categoria clínica; o app não escolhe a linha',
+  clinical_category: 'O laudo traz referências diferentes por categoria clínica (ex.: risco, fase do ciclo); confira qual se aplica',
   no_unique_row: 'Não foi possível escolher uma única linha da tabela pelo sexo e idade',
   left_reference: 'Estava dentro da referência; agora está fora',
   returned_to_reference: 'Estava fora da referência; agora está dentro',
@@ -42,10 +42,36 @@ const REASONS: Record<string, string> = {
 
 const DIRECTIONS: Record<string, string> = { above: 'acima', below: 'abaixo' };
 
+// Card colors of the points of attention (decided 26/10/2026). They show only the side of the printed reference,
+// never whether the value is favorable: above and below differ because below is not necessarily better or worse.
+export type FindingTone = 'above' | 'below' | 'out' | 'check' | 'neutral';
+export const TONE_COLORS: Record<FindingTone, { text: string; background: string; border: string }> = {
+  above: { text: '#B42318', background: '#FEF3F2', border: '#FAD7D2' },
+  below: { text: '#B54708', background: '#FFF6ED', border: '#FCDDBE' },
+  out: { text: '#B42318', background: '#FEF3F2', border: '#FAD7D2' },
+  check: { text: '#7A5C00', background: '#FCF7E4', border: '#EFE2B3' },
+  neutral: { text: '#55546D', background: '#FFFFFF', border: '#DAD6EA' },
+};
+export const TONE_NOTE = 'As cores indicam se o valor está acima ou abaixo da referência do laudo, não se é favorável ou desfavorável.';
+const ARROWS: Partial<Record<FindingTone, string>> = { above: '↑ ', below: '↓ ' };
+
+export function findingTone(finding: Finding): FindingTone {
+  if (finding.kind === 'table_check' || finding.kind === 'unverifiable') return 'check';
+  if (finding.kind !== 'out_of_reference') return 'neutral';
+  if (finding.reason === 'above_reference') return 'above';
+  if (finding.reason === 'below_reference') return 'below';
+  if (finding.reason === 'flagged_by_lab') {
+    const direction = finding.details.direction;
+    return direction === 'above' || direction === 'below' ? direction : 'out';
+  }
+  return 'out';
+}
+
 export function reasonText(finding: Finding): string {
   const base = REASONS[finding.reason] ?? finding.reason;
   const direction = DIRECTIONS[String(finding.details.direction ?? '')];
-  return finding.reason === 'flagged_by_lab' && direction ? `${base} (${direction})` : base;
+  const text = finding.reason === 'flagged_by_lab' && direction ? `${base} (${direction})` : base;
+  return `${ARROWS[findingTone(finding)] ?? ''}${text}`;
 }
 
 /** Title line of a finding: parameter (or exam) and value with unit. */

@@ -1,7 +1,7 @@
 import { classifyParameter, generateFindings, normalizeText, type Extraction, type Finding, type ParameterStatus, type Sex } from '../../../modules/lab-report/findings';
 import { CONSIDERATIONS_DISCLAIMER, type ConsiderationsResult } from '../../../modules/clinical-considerations/considerations';
 import { themeLines, THEMES_NOTE, type Theme } from '../../../modules/clinical-considerations/grouping';
-import { DISCLAIMER, findingDetails, findingTitle, groupFindings, reasonText } from './findings-text';
+import { DISCLAIMER, findingDetails, findingTitle, findingTone, groupFindings, reasonText, TONE_COLORS, TONE_NOTE } from './findings-text';
 
 // Full report of one analysis (decided 16/10/2026, docs/exam-comparison.md): every parameter by exam, classified in
 // code against the printed reference (level A). It never carries the patient's name or CPF, only age and sex,
@@ -31,11 +31,11 @@ export const STATUS_TEXT: Record<ParameterStatus, string> = {
 // Colors follow only the printed reference, as laboratories do; they never mean clinical severity.
 export const STATUS_COLORS: Record<ParameterStatus, { text: string; background: string }> = {
   within: { text: '#2B8065', background: '#E3F4EE' },
-  below: { text: '#B42318', background: '#FDECEA' },
+  below: { text: '#B54708', background: '#FFEAD5' },
   above: { text: '#B42318', background: '#FDECEA' },
   not_expected: { text: '#B42318', background: '#FDECEA' },
-  table_check: { text: '#8A5A00', background: '#FFF4E5' },
-  unverifiable: { text: '#8A5A00', background: '#FFF4E5' },
+  table_check: { text: '#7A5C00', background: '#F8EDC6' },
+  unverifiable: { text: '#7A5C00', background: '#F8EDC6' },
   not_comparable: { text: '#55546D', background: '#F0EFF5' },
 };
 const FLAG_TEXT: Record<string, string> = { above: 'acima', below: 'abaixo', within: 'dentro' };
@@ -213,9 +213,14 @@ function considerationsHtml(considerations: ConsiderationsResult, themes: Theme[
 
 export function reportHtml(report: Report, generatedAt: Date, considerations: ConsiderationsResult | null = null,
   themes: Theme[] | null = null): string {
-  const highlights = groupFindings(report.highlights).map(group => `<h3>${escape(group.title)} (${group.items.length})</h3><ul>${
-    group.items.map(item => `<li><b>${escape(findingTitle(item))}</b> — ${escape(reasonText(item))}${
-      findingDetails(item).map(line => `<br/><span class="muted">${escape(line)}</span>`).join('')}</li>`).join('')}</ul>`).join('');
+  // One card per point of attention, colored by the side of the reference (findingTone).
+  const highlights = groupFindings(report.highlights).map(group => `<h3>${escape(group.title)} (${group.items.length})</h3>${
+    group.items.map(item => {
+      const tone = TONE_COLORS[findingTone(item)];
+      return `<div class="card" style="background:${tone.background};border-color:${tone.border}"><b>${escape(findingTitle(item))}</b><br/><span style="color:${
+        tone.text};font-weight:600">${escape(reasonText(item))}</span>${
+        findingDetails(item).map(line => `<br/><span class="muted">${escape(line)}</span>`).join('')}</div>`;
+    }).join('')}`).join('');
   const exams = report.exams.map(exam => `<h2>${escape(exam.name)}</h2>${exam.detail ? `<p class="muted">${escape(exam.detail)}</p>` : ''}
     <table><thead><tr><th>Parâmetro</th><th>Resultado</th><th>Referência impressa</th><th>Situação</th></tr></thead><tbody>${
     exam.rows.map(row => `<tr><td>${escape(row.name)}${
@@ -237,12 +242,13 @@ export function reportHtml(report: Report, generatedAt: Date, considerations: Co
     th { font-size: 8.5pt; color: #55546D; } tr { page-break-inside: avoid; }
     .badge { display: inline-block; padding: 1pt 5pt; border-radius: 8pt; font-weight: 600; font-size: 8.5pt; }
     ul { margin: 2pt 0; padding-left: 14pt; } li { margin-bottom: 4pt; }
+    .card { border: 1px solid; border-radius: 6pt; padding: 6pt 8pt; margin: 4pt 0; page-break-inside: avoid; }
   </style></head><body>
     <h1>Relatório de exames laboratoriais</h1>
     <p>${report.laboratory ? `Laboratório: ${escape(report.laboratory)}<br/>` : ''}Coleta: ${
       report.collectedAt ? escape(formatDate(report.collectedAt)) : 'data não impressa'}<br/>Paciente: ${escape(sexAgeText(report))}${source}</p>
     <div class="box">${escape(DISCLAIMER)} Transcrição automática por IA e comparação por regras do app; não é laudo nem diagnóstico.</div>
-    <h2>Pontos de atenção</h2>${highlights || '<p>Nenhum ponto de atenção encontrado.</p>'}
+    <h2>Pontos de atenção</h2>${highlights ? `<p class="muted">${escape(TONE_NOTE)}</p>${highlights}` : '<p>Nenhum ponto de atenção encontrado.</p>'}
     ${exams}${considerations ? considerationsHtml(considerations, themes) : ''}${others}
     <p class="muted">Gerado em ${escape(generatedAt.toLocaleString('pt-BR'))}. Sem identificação do paciente.</p>
   </body></html>`;

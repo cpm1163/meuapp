@@ -1,0 +1,375 @@
+{
+  "version": 1,
+  "curated_on": "2026-10-26",
+  "validation": "Rascunho: trechos e páginas conferidos na fonte em 26/10/2026; ainda não validado por médico.",
+  "notes": [
+    "Fichas de significado das considerações clínicas (docs/clinical-considerations.md, 'Formato da saída'). O código seleciona as fichas cujas premissas os resultados confirmam; a IA só escreve o texto a partir delas.",
+    "premises: todas precisam valer. 'range' compara o valor com min/max na unidade da ficha (*_inclusive diz se o limite entra); 'status' usa a classificação contra a referência impressa no laudo (above, below, within).",
+    "meaning: texto-base do significado, em linguagem de hipótese; a IA pode reescrever, sem acrescentar afirmação que a ficha não tenha.",
+    "kind: 'guideline' (diretriz) ou 'review' (revisão publicada, mostrada como revisão e não como diretriz).",
+    "parameter_code: hba1c, homa_ir, egfr e urine_acr ainda não existem na extração; são propostos aqui e precisam entrar nas skills, como os demais códigos novos."
+  ],
+  "sources": [
+    {
+      "id": "sbd-2024-diagnostico",
+      "short": "SBD",
+      "kind": "guideline",
+      "reference": "Rodacki M, Cobas RA, Zajdenverg L, et al. Diagnóstico de diabetes mellitus. Diretriz Oficial da Sociedade Brasileira de Diabetes. Última revisão em 09/07/2024. DOI: 10.29327/5412848.2024-1.",
+      "url": "https://diretriz.diabetes.org.br/diagnostico-de-diabetes-mellitus/"
+    },
+    {
+      "id": "geloneze-2006-ri",
+      "short": "Geloneze e Tambascia, 2006",
+      "kind": "review",
+      "reference": "Geloneze B, Tambascia MA. Avaliação laboratorial e diagnóstico da resistência insulínica. Arq Bras Endocrinol Metab. 2006;50(2):208-215. DOI: 10.1590/S0004-27302006000200007.",
+      "url": "https://www.scielo.br/j/abem/a/x3bVHFwqssPmqwPmcgNfcck/?lang=pt"
+    },
+    {
+      "id": "kdigo-2024-ckd",
+      "short": "KDIGO 2024",
+      "kind": "guideline",
+      "reference": "Kidney Disease: Improving Global Outcomes (KDIGO) CKD Work Group. KDIGO 2024 Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease. Kidney Int. 2024;105(4S):S117-S314.",
+      "url": "https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf"
+    },
+    {
+      "id": "sbc-2025-dislipidemias",
+      "short": "SBC 2025",
+      "kind": "guideline",
+      "reference": "Diretriz Brasileira de Dislipidemias e Prevenção da Aterosclerose - 2025. Arq Bras Cardiol. 2025;122(9):e20250640.",
+      "url": "https://abccardiol.org/wp-content/uploads/articles_xml/0066-782X-abc-122-09-e20250640/0066-782X-abc-122-09-e20250640.x66747.pdf"
+    },
+    {
+      "id": "riley-2015-leucocitose",
+      "short": "Riley e Rupert, 2015",
+      "kind": "review",
+      "reference": "Riley LK, Rupert J. Evaluation of Patients with Leukocytosis. Am Fam Physician. 2015;92(11):1004-1011.",
+      "url": "https://www.aafp.org/pubs/afp/issues/2015/1201/p1004.html"
+    },
+    {
+      "id": "statpearls-2026-leucocitose",
+      "short": "Mank e Killeen, StatPearls",
+      "kind": "review",
+      "reference": "Mank V, Killeen RB. Leukocytosis. In: StatPearls [Internet]. Treasure Island (FL): StatPearls Publishing. Última atualização em 15/06/2026.",
+      "url": "https://www.ncbi.nlm.nih.gov/books/NBK560882/"
+    }
+  ],
+  "meanings": [
+    {
+      "id": "sbd-hba1c-pre-diabetes",
+      "source": "sbd-2024-diagnostico",
+      "theme": "metabolismo glicêmico",
+      "population": {
+        "age_min_months": 240,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "hba1c",
+          "range": {
+            "min": 5.7,
+            "min_inclusive": true,
+            "max": 6.4,
+            "max_inclusive": true,
+            "unit": "%"
+          }
+        }
+      ],
+      "meaning": "Hemoglobina glicada na faixa de pré-diabetes pelos critérios da SBD; nem todos os indivíduos desse grupo evoluem para diabetes.",
+      "page": {
+        "section": "Introdução e Tabela 1"
+      },
+      "excerpt": "Tabela 1. Critérios laboratoriais para diagnóstico de DM e pré-diabetes. [...] HbA1c (%) 5,7-6,4 ≥ 6,5 [...] A American Diabetes Association (ADA) e a Sociedade Brasileira de Diabetes (SBD) utilizam a nomenclatura “pré-diabetes” para estes indivíduos. Embora nem todos os indivíduos desse grupo evoluam para DM, o termo “pré-diabetes” tornou-se facilmente assimilado e difundido pelos profissionais de saúde.",
+      "curation_notes": "A tabela não traz limite de idade; a ficha fica restrita a adultos (≥ 20 anos) até haver fonte pediátrica."
+    },
+    {
+      "id": "geloneze-homa-ir-ri",
+      "source": "geloneze-2006-ri",
+      "theme": "metabolismo glicêmico",
+      "population": {
+        "age_min_months": 240,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "homa_ir",
+          "range": {
+            "min": 2.71,
+            "min_inclusive": false,
+            "unit": ""
+          }
+        }
+      ],
+      "meaning": "HOMA-IR acima do valor de corte descrito para a população brasileira (estudo BRAMS), compatível com resistência à insulina.",
+      "page": {
+        "pdf": 4,
+        "printed": "211"
+      },
+      "excerpt": "Em nosso meio, no estudo nomeado BRAMS (BRAzilian Metabolic Syndrome study), encontramos o valor de corte para o diagnóstico da RI quando o Homa–IR for maior que 2,71 (24).",
+      "caveats": [
+        "Revisão de 2006, sem diretriz atual da SBD ou da SBEM com corte de HOMA-IR."
+      ],
+      "curation_notes": "Fonte é revisão, não diretriz. O laudo da amostra 1 usa 'inferior a 2,70', provavelmente o mesmo corte."
+    },
+    {
+      "id": "geloneze-ri-aterosclerose",
+      "source": "geloneze-2006-ri",
+      "theme": "metabolismo glicêmico",
+      "population": {
+        "age_min_months": 240,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "homa_ir",
+          "range": {
+            "min": 2.71,
+            "min_inclusive": false,
+            "unit": ""
+          }
+        }
+      ],
+      "meaning": "A resistência à insulina é associada à aterosclerose.",
+      "page": {
+        "pdf": 1,
+        "printed": "208"
+      },
+      "excerpt": "Em virtude da associação entre resistência à insulina (RI) e aterosclerose, existe interesse no desenvolvimento de técnicas para se avaliar a sensibilidade à insulina (SI) in vivo.",
+      "curation_notes": "Só vale junto com a ficha geloneze-homa-ir-ri (mesma premissa)."
+    },
+    {
+      "id": "kdigo-g2-sem-lesao",
+      "source": "kdigo-2024-ckd",
+      "theme": "função renal",
+      "population": {
+        "age_min_months": 216,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "egfr",
+          "range": {
+            "min": 60,
+            "min_inclusive": true,
+            "max": 90,
+            "max_inclusive": false,
+            "unit": "mL/min/1,73m²"
+          }
+        },
+        {
+          "parameter_code": "urine_acr",
+          "range": {
+            "max": 30,
+            "max_inclusive": false,
+            "unit": "mg/g"
+          }
+        }
+      ],
+      "meaning": "Filtração glomerular na categoria G2 (levemente reduzida em relação ao adulto jovem), com albuminúria na categoria A1; sem evidência de lesão renal, a categoria G2 não preenche o critério de doença renal crônica.",
+      "page": {
+        "pdf": 22,
+        "printed": "S137"
+      },
+      "excerpt": "CKD is defined as abnormalities of kidney structure or function, present for a minimum of 3 months, with implications for health (Table 1). [...] Table 2 | GFR categories in CKD [...] G2 60–89 Mildly decreased(a) [...] (a) Relative to the young adult level. In the absence of evidence of kidney damage, neither G1 nor G2 fulfills the criteria for CKD.",
+      "caveats": [
+        "Entre os marcadores de lesão renal, o laudo informa só a albuminúria."
+      ],
+      "curation_notes": "A eGFR da amostra 1 é CKD-EPI 2021 (válida acima de 18 anos, segundo o laudo)."
+    },
+    {
+      "id": "sbc-colesterol-aterosclerose",
+      "source": "sbc-2025-dislipidemias",
+      "theme": "perfil lipídico",
+      "population": {
+        "age_min_months": 240,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "total_cholesterol",
+          "range": {
+            "min": 190,
+            "min_inclusive": true,
+            "unit": "mg/dL"
+          }
+        }
+      ],
+      "meaning": "Colesterol total acima do valor referencial da SBC; níveis elevados de colesterol têm papel bem demonstrado na carga da doença aterosclerótica.",
+      "page": {
+        "pdf": 14,
+        "printed": "14"
+      },
+      "excerpt": "Hoje em dia, está bem demonstrado o papel dos níveis elevados de colesterol no sangue para a carga global da doença aterosclerótica.",
+      "curation_notes": "O corte de 190 mg/dL é o valor referencial de adultos já curado (sbc2025-ct-adulto, p. 36). LDL e não-HDL ficam sem ficha: o alvo depende da categoria de risco (ver 'excluded' em curated-statements.json). LDL ≥ 190 mg/dL só sustenta suspeita de hipercolesterolemia familiar com histórico familiar, que o laudo não traz (p. 18)."
+    },
+    {
+      "id": "riley-wbc-abaixo-de-leucocitose",
+      "source": "riley-2015-leucocitose",
+      "theme": "hemograma",
+      "population": {
+        "age_min_months": 252,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "wbc",
+          "status": "above"
+        },
+        {
+          "parameter_code": "wbc",
+          "range": {
+            "max": 11000,
+            "max_inclusive": true,
+            "unit": "/µL"
+          }
+        }
+      ],
+      "meaning": "Leucócitos acima da referência do laboratório, mas sem atingir o valor com que a leucocitose costuma ser definida em adultos não gestantes.",
+      "page": {
+        "section": "Introdução"
+      },
+      "excerpt": "Leukocytosis, often defined as an elevated white blood cell (WBC) count greater than 11,000 per mm3 (11.0 × 10^9 per L) in nonpregnant adults, is a relatively common finding with a wide differential.",
+      "caveats": [
+        "A definição vale para adultos não gestantes; o laudo não informa gestação."
+      ],
+      "curation_notes": "A fonte dá faixa adulta de 4.500 a 11.000 a partir de cerca de 21 anos (Tabela 1); por isso a população começa em 21 anos."
+    },
+    {
+      "id": "riley-leucocitose-reativa",
+      "source": "riley-2015-leucocitose",
+      "theme": "hemograma",
+      "population": {
+        "age_min_months": 252,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "wbc",
+          "range": {
+            "min": 11000,
+            "min_inclusive": false,
+            "max": 30000,
+            "max_inclusive": true,
+            "unit": "/µL"
+          }
+        }
+      ],
+      "meaning": "Leucocitose na faixa típica da leucocitose reativa, que pode ter várias causas, como estresse físico ou emocional, exercício, cirurgia e medicamentos.",
+      "page": {
+        "section": "Nonmalignant Etiologies"
+      },
+      "excerpt": "A reactive leukocytosis, typically in the range of 11,000 to 30,000 per mm3 (11.0 to 30.0 × 10^9 per L), can arise from a variety of etiologies. Any source of stress can cause a catecholamine-induced demargination of WBCs, as well as increased release from the bone marrow storage pool. Examples include surgery, exercise, trauma, burns, and emotional stress.",
+      "curation_notes": "Não se aplica à amostra 1 (10.810/µL); entra porque é a ficha complementar da anterior."
+    },
+    {
+      "id": "riley-eosinofilia",
+      "source": "riley-2015-leucocitose",
+      "theme": "hemograma",
+      "population": {
+        "age_min_months": 252,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "eosinophils_abs",
+          "range": {
+            "min": 500,
+            "min_inclusive": false,
+            "unit": "/µL"
+          }
+        }
+      ],
+      "meaning": "Eosinofilia pela contagem absoluta, achado incomum que pode estar associado a condições alérgicas e reações a medicamentos, entre outras causas.",
+      "page": {
+        "section": "Differentiation by Type of White Blood Cell"
+      },
+      "excerpt": "Eosinophilia (eosinophil absolute count greater than 500 per mm3 [0.5 × 10^9 per L]), although uncommon, may suggest allergic conditions such as asthma, urticaria, atopic dermatitis or eosinophilic esophagitis, drug reactions, dermatologic conditions, malignancies, connective tissue disease, idiopathic [...]",
+      "curation_notes": "A lista da fonte inclui neoplasias; o texto-base fica nas causas mais comuns citadas primeiro e diz 'entre outras causas'. Validar com o médico se isso basta."
+    },
+    {
+      "id": "riley-linfocitos-so-percentual",
+      "source": "riley-2015-leucocitose",
+      "theme": "hemograma",
+      "population": {
+        "age_min_months": 252,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "lymphocytes_pct",
+          "status": "below"
+        },
+        {
+          "parameter_code": "lymphocytes_abs",
+          "status": "within"
+        }
+      ],
+      "meaning": "Linfócitos reduzidos apenas no percentual, com contagem absoluta dentro da referência; a fonte observa que pode ser útil avaliar as alterações dos leucócitos pela contagem absoluta, e não só pela relativa.",
+      "page": {
+        "section": "Differentiation by Type of White Blood Cell"
+      },
+      "excerpt": "Although the differential of the major types of WBCs is important for evaluating the cause of leukocytosis, it is sometimes helpful to think in terms of absolute, rather than relative, leukopenias and leukocytoses. To calculate the absolute cell count, the total leukocyte count is multiplied by the differential percentage.",
+      "curation_notes": "O mesmo raciocínio vale para outras células; por ora só linfócitos, o caso da amostra 1."
+    },
+    {
+      "id": "statpearls-neutrofilia",
+      "source": "statpearls-2026-leucocitose",
+      "theme": "hemograma",
+      "population": {
+        "age_min_months": 252,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "neutrophils_abs",
+          "range": {
+            "min": 7700,
+            "min_inclusive": false,
+            "unit": "/µL"
+          }
+        }
+      ],
+      "meaning": "Neutrofilia pela contagem absoluta, a causa mais comum de leucocitose; pela ampla variação dos valores normais, uma pequena parcela da população saudável pode apresentar neutrofilia.",
+      "page": {
+        "section": "Etiology"
+      },
+      "excerpt": "Neutrophilia is defined as an absolute neutrophil count at least 2 standard deviations above the mean, or greater than 7700 cells/µL in adults, and represents the most common cause of leukocytosis. [2] Given the wide variation in normal values, approximately 2.5% of the healthy population may have neutrophilia.",
+      "curation_notes": "O texto-base não repete o 2,5% (considerações sem números); diz 'uma pequena parcela'."
+    },
+    {
+      "id": "statpearls-eosinofilia-alergica",
+      "source": "statpearls-2026-leucocitose",
+      "theme": "hemograma",
+      "population": {
+        "age_min_months": 252,
+        "age_max_months": null,
+        "sex": "both"
+      },
+      "premises": [
+        {
+          "parameter_code": "eosinophils_abs",
+          "range": {
+            "min": 500,
+            "min_inclusive": false,
+            "unit": "/µL"
+          }
+        }
+      ],
+      "meaning": "Entre as causas comuns de eosinofilia estão condições alérgicas, como rinite alérgica e dermatite atópica, que costumam cursar com eosinofilia leve; fora dos extremos, o nível isolado não ajuda a definir a causa.",
+      "page": {
+        "section": "Etiology"
+      },
+      "excerpt": "an absolute eosinophil count (AEC) of more than 500 cells/µL defines eosinophilia. The list of potential underlying causes of eosinophilia is extensive. Common causes include allergic conditions such as allergic rhinitis and atopic dermatitis, which are typically associated with mild eosinophilia. Patients with severe eosinophilia (≥20,000 cells/µL) are more likely to be associated with a myeloid neoplasm. Besides these 2 extremes, the level of eosinophilia alone does not help to determine the underlying cause.",
+      "curation_notes": "Complementa riley-eosinofilia (mesma premissa)."
+    }
+  ]
+}

@@ -43,3 +43,19 @@ test('lab notes show the note text; the disclaimer is fixed', () => {
   assert.equal(text.findingDetails(note)[0], note.value_text);
   assert.match(text.DISCLAIMER, /sem interpretação clínica/);
 });
+
+test('cards are colored by the side of the reference: above and below never share a tone', () => {
+  const base = {kind: 'out_of_reference', exam_name: null, parameter_name: 'X', page: null, value_text: '1', unit: null,
+    reference_text: null, lab_flag: null, previous: null};
+  const tone = (reason, details = {}, kind = 'out_of_reference') => text.findingTone({...base, kind, reason, details});
+  assert.equal(tone('above_reference'), 'above');
+  assert.equal(tone('below_reference'), 'below');
+  assert.equal(tone('not_expected_value'), 'out');
+  assert.equal(tone('flagged_by_lab', {direction: 'below'}), 'below');
+  assert.equal(tone('clinical_category', {}, 'table_check'), 'check');
+  assert.equal(tone('left_reference', {}, 'history_change'), 'neutral');
+  assert.notEqual(text.TONE_COLORS.above.background, text.TONE_COLORS.below.background);
+  assert.ok(text.reasonText({...base, reason: 'above_reference', details: {}}).startsWith('↑'));
+  assert.ok(text.reasonText({...base, reason: 'below_reference', details: {}}).startsWith('↓'));
+  for (const finding of findings) assert.ok(text.TONE_COLORS[text.findingTone(finding)], finding.reason);
+});
