@@ -1,4 +1,5 @@
 import { classifyParameter, generateFindings, normalizeText, type Extraction, type Finding, type ParameterStatus, type Sex } from '../../../modules/lab-report/findings';
+import type { Verification } from '../../../modules/lab-report/verification';
 import { splitUnsourced, textBlocks, UNSOURCED_NOTE, UNSOURCED_TITLE, WRITING_DISCLAIMER } from '../../../modules/clinical-considerations/writing';
 import { DISCLAIMER, findingDetails, findingTitle, findingTone, groupFindings, reasonText, TONE_COLORS, TONE_NOTE, valueWithUnit } from './findings-text';
 
@@ -31,6 +32,8 @@ export type Report = {
   recordMismatch: string[];
   // What the report prints and the record lacks, offered to complete the record (never filled automatically).
   recordGaps: { sex: Sex; age: number | null };
+  // Double check of the reading (verify-analysis): shown in the screen and in the PDF.
+  verification: VerificationView | null;
 };
 
 export const STATUS_TEXT: Record<ParameterStatus, string> = {
@@ -104,7 +107,26 @@ export function recordGaps(extraction: Extraction, record: Demographics | null):
  * Builds the report. Age and sex printed on the report win; the patient record fills what is missing, so tables by
  * sex and age can pick their row.
  */
-export function buildReport(extraction: Extraction, storedFindings: Finding[], record: Demographics | null): Report {
+export type VerificationView = { running: boolean; alerts: string[]; notes: string[] };
+
+/** What the double check of the reading tells the doctor; values missing from the PDF text are alerts. */
+export function verificationView(verification: Verification | null | undefined): VerificationView | null {
+  if (!verification) return null;
+  if (verification.status === 'running') return { running: true, alerts: [],
+    notes: ['Conferindo a leitura: o app compara os valores com o texto do laudo e relê os exames que faltaram.'] };
+  if (verification.status === 'failed') return { running: false, alerts: [],
+    notes: ['A conferência automática da leitura não foi concluída. Confira os valores no laudo original.'] };
+  const alerts = verification.values_not_found.map(item =>
+    `${item.parameter_name} (${item.exam_name}): o valor transcrito “${item.value_text}” não foi encontrado no texto do laudo.`);
+  const notes: string[] = [];
+  if (verification.recovered.length) notes.push(`Lido na conferência: ${verification.recovered.join(', ')}.`);
+  if (!verification.text_checked) notes.push('O arquivo não tem texto (foto ou digitalização): os valores não puderam ser conferidos com o laudo.');
+  else if (!alerts.length) notes.push('Conferência: todos os valores transcritos foram encontrados no texto do laudo.');
+  return { running: false, alerts, notes };
+}
+
+export function buildReport(extraction: Extraction, storedFindings: Finding[], record: Demographics | null,
+  verification: Verification | null = null): Report {
   const printed = extraction.patient_sex !== null || extraction.patient_age_years !== null;
   const sex = extraction.patient_sex ?? record?.sex ?? null;
   const age = extraction.patient_age_years
@@ -141,6 +163,7 @@ export function buildReport(extraction: Extraction, storedFindings: Finding[], r
     otherExams: extraction.other_exams.map(exam => exam.exam_name).filter(Boolean),
     recordMismatch: recordMismatch(extraction, record),
     recordGaps: recordGaps(extraction, record),
+    verification: verificationView(verification),
   };
 }
 
@@ -247,7 +270,10 @@ export function reportHtml(report: Report, generatedAt: Date, considerations: Ap
     <h1>Relatório de exames laboratoriais</h1>
     <p>${report.laboratory ? `Laboratório: ${escape(report.laboratory)}<br/>` : ''}Coleta: ${
       report.collectedAt ? escape(formatDate(report.collectedAt)) : 'data não impressa'}<br/>Paciente: ${escape(sexAgeText(report))}${source}</p>
-    <div class="box">${escape(DISCLAIMER)} Transcrição automática por IA e comparação por regras do app; não é laudo nem diagnóstico.</div>
+    <div class="box">${escape(DISCLAIMER)} Transcrição automática por IA e comparação por regras do app; não é laudo nem diagnóstico.</div>${
+    report.verification && !report.verification.running ? `${report.verification.alerts.map(line =>
+      `<div class="card" style="background:#FDECEA;border-color:#F4C7C3"><b style="color:#B42318">${escape(line)}</b></div>`).join('')}${
+      report.verification.notes.map(line => `<p class="muted">${escape(line)}</p>`).join('')}` : ''}
     <h2>Pontos de atenção</h2>${highlights ? `<p class="muted">${escape(TONE_NOTE)}</p>${highlights}` : '<p>Nenhum ponto de atenção encontrado.</p>'}
     ${exams}${considerations ? considerationsHtml(considerations) : ''}${others}
     <p class="muted">Gerado em ${escape(generatedAt.toLocaleString('pt-BR'))}. Sem identificação do paciente.</p>

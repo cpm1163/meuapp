@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.132.0",
+    "@std/encoding": "jsr:@std/encoding@^1.0.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.117.3",
+    "pdf-lib": "npm:pdf-lib@1.17.1",
+    "unpdf": "npm:unpdf@1.9.1"
+  }
+}

@@ -38,8 +38,9 @@ export function extractJson(text: string): string {
   return start >= 0 && end > start ? text.slice(start, end + 1) : text;
 }
 
-/** Messages API params for one analysis (direct streaming call). */
-export function buildRequestParams(file: SourceFile, schema: JsonSchema) {
+/** Messages API params for one analysis (direct streaming call); `instruction` narrows a reread to some exams. */
+export function buildRequestParams(file: SourceFile, schema: JsonSchema,
+  instruction = 'Transcreva este documento conforme as instruções.') {
   let source;
   if (file.mimeType === 'application/pdf') {
     source = {type: 'document', source: {type: 'base64', media_type: 'application/pdf', data: file.base64}};
@@ -53,7 +54,7 @@ export function buildRequestParams(file: SourceFile, schema: JsonSchema) {
     max_tokens: MAX_TOKENS,
     output_config: {effort: EFFORT},
     system: systemPrompt(schema),
-    messages: [{role: 'user', content: [source, {type: 'text', text: 'Transcreva este documento conforme as instruções.'}]}],
+    messages: [{role: 'user', content: [source, {type: 'text', text: instruction}]}],
   };
 }
 
@@ -67,18 +68,28 @@ export type Outcome =
   | {status: 'ready'; extraction: Extraction; findings: Finding[]; model: string; usage: Usage}
   | {status: 'failed'; reason: string; model: string | null; usage: Usage; detail?: string};
 
+export type Reading = {ok: true; extraction: Extraction; model: string; usage: Usage} | {ok: false; outcome: Outcome};
+
 /** Validates the AI output and generates the findings. Any doubt ends as a failure, never a partial result. */
 export function interpretResult(result: BatchResult, schema: JsonSchema): Outcome {
+  const reading = readResult(result, schema);
+  return reading.ok ? finishOutcome(reading.extraction, reading.model, reading.usage) : reading.outcome;
+}
+
+/** The checked extraction of one reading (a whole report or one part), before the report-level checks. */
+export function readResult(result: BatchResult, schema: JsonSchema): Reading {
+  const fail = (outcome: Outcome): Reading => ({ok: false, outcome});
   if (result.type === 'errored') {
     // The provider's own error (e.g. a request it rejects); it never carries document content.
     const error = result.error?.error;
     const reason = error?.type === 'invalid_request_error' ? 'provider_invalid_request' : 'provider_error';
     const detail = [error?.type, error?.message].filter(Boolean).join(': ').slice(0, 500) || undefined;
-    return {status: 'failed', reason, model: null, usage: null, detail};
+    return fail({status: 'failed', reason, model: null, usage: null, detail});
   }
-  if (result.type !== 'succeeded') return {status: 'failed', reason: `provider_${result.type}`, model: null, usage: null};
+  if (result.type !== 'succeeded') return fail({status: 'failed', reason: `provider_${result.type}`, model: null, usage: null});
   const {message} = result;
-  const failed = (reason: string): Outcome => ({status: 'failed', reason, model: message.model, usage: message.usage ?? null});
+  const failed = (reason: string, detail?: string): Reading =>
+    fail({status: 'failed', reason, model: message.model, usage: message.usage ?? null, ...(detail ? {detail} : {})});
   if (message.stop_reason === 'refusal') return failed('model_refusal');
   if (message.stop_reason === 'max_tokens') return failed('output_truncated');
   if (message.stop_reason !== 'end_turn') return failed('unexpected_stop');
@@ -87,10 +98,17 @@ export function interpretResult(result: BatchResult, schema: JsonSchema): Outcom
   try {
     extraction = JSON.parse(extractJson(text));
   } catch {
-    return failed('invalid_output');
+    return failed('invalid_output', 'json_parse');
   }
-  if (validateSchema(schema, extraction).length > 0) return failed('invalid_output');
+  // Field paths only, never values (e.g. "$.exams[3].parameters[2].value_kind: value not in enum").
+  const errors = validateSchema(schema, extraction);
+  if (errors.length > 0) return failed('invalid_output', errors.slice(0, 5).join('; ').slice(0, 450));
+  return {ok: true, extraction, model: message.model, usage: message.usage ?? null};
+}
+
+/** Report-level checks and findings, on the whole extraction (merged when read in parts). */
+export function finishOutcome(extraction: Extraction, model: string, usage: Usage): Outcome {
   const reason = failureReason(extraction);
-  if (reason) return failed(reason);
-  return {status: 'ready', extraction, findings: generateFindings(extraction), model: message.model, usage: message.usage ?? null};
+  if (reason) return {status: 'failed', reason, model, usage};
+  return {status: 'ready', extraction, findings: generateFindings(extraction), model, usage};
 }

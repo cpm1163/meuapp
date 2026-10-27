@@ -1,3 +1,4 @@
+import type { Verification } from '../../../modules/lab-report/verification';
 import { createClient, FunctionsHttpError } from '@supabase/supabase-js';
 import type { Extraction, Finding } from '../../../modules/lab-report/findings';
 import type { Group } from '../../../modules/clinical-considerations/grouping';
@@ -15,9 +16,10 @@ export type Analysis = {
   model: string | null;
   created_at: string;
   completed_at: string | null;
+  verification: Verification | null;
 };
 export type AnalysisSummary = Pick<Analysis, 'id' | 'status' | 'created_at'>;
-const ANALYSIS_COLUMNS = 'id, document_id, status, failure_reason, findings, extraction, model, created_at, completed_at';
+const ANALYSIS_COLUMNS = 'id, document_id, status, failure_reason, findings, extraction, model, created_at, completed_at, verification';
 export type Quota ={ daily_limit: number; used: number; remaining: number; next_available_at: string | null };
 export type ModuleAccess = 'ready' | 'not_granted' | 'terms_pending' | 'not_available';
 

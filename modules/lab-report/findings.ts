@@ -316,20 +316,27 @@ function hemogramFindings(extraction: Extraction): Finding[] {
 
 const round = (value: number) => Math.round(value * 10000) / 10000;
 
+/** Same exam name, or one name containing the other ("Creatinina" and "Creatinina - Urina Isolada"). */
+export const sameExam = (a: string, b: string) => {
+  const [x, y] = [normalizeText(a), normalizeText(b)];
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+};
+
+/** Exams the laboratory lists as executed that the reading did not transcribe. */
+export function missingExams(extraction: Extraction): string[] {
+  // Declared exams listed as non-lab (mixed report) were seen, not missed.
+  const seen = [...extraction.exams, ...extraction.other_exams].map(exam => exam.exam_name);
+  return extraction.executed_exams.filter(declared => normalizeText(declared) && !seen.some(found => sameExam(found, declared)));
+}
+
 function completenessFindings(extraction: Extraction): Finding[] {
   const findings: Finding[] = [];
   const empty = {parameter_name: null, page: null, value_text: null, unit: null, reference_text: null, lab_flag: null, previous: null};
   if (extraction.legibility === 'partial') {
     findings.push({kind: 'incomplete_reading', reason: 'partial_legibility', exam_name: null, ...empty, details: {}});
   }
-  // Declared exams listed as non-lab (mixed report) were seen, not missed.
-  const seen = [...extraction.exams, ...extraction.other_exams].map(exam => normalizeText(exam.exam_name));
-  for (const declared of extraction.executed_exams) {
-    const name = normalizeText(declared);
-    if (!name) continue;
-    if (!seen.some(found => found === name || found.includes(name) || name.includes(found))) {
-      findings.push({kind: 'incomplete_reading', reason: 'exam_not_extracted', exam_name: declared, ...empty, details: {}});
-    }
+  for (const declared of missingExams(extraction)) {
+    findings.push({kind: 'incomplete_reading', reason: 'exam_not_extracted', exam_name: declared, ...empty, details: {}});
   }
   for (const other of extraction.other_exams) {
     findings.push({kind: 'not_analyzed', reason: `${other.kind}_exam`, exam_name: other.exam_name, ...empty,

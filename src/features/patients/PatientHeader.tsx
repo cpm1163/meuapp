@@ -7,7 +7,7 @@ import { createPatientService, formatBirthDate, formatCpf, patientError, type Pa
 
 const sexLabels = { female: 'Feminino', male: 'Masculino' } as const;
 
-// Patient data at the top of the patient's document list, with correction and deletion.
+// Patient data at the top of the patient's screen (Ficha and Documentos tabs), with correction and deletion.
 export function PatientHeader({ patientId, accessToken }: { patientId: string; accessToken: string }) {
   const service = useMemo(() => createPatientService(accessToken), [accessToken]);
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -41,7 +41,7 @@ export function PatientHeader({ patientId, accessToken }: { patientId: string; a
         <Action title={confirmDelete ? 'Confirmar exclusão do paciente' : 'Excluir paciente'} danger onPress={() => void remove()} disabled={busy} />
         {confirmDelete && <Action title="Não excluir" onPress={() => setConfirmDelete(false)} disabled={busy} />}
       </View>
-      {confirmDelete && <Text style={ui.danger}>Só é possível excluir um paciente sem documentos. Esta ação não pode ser desfeita.</Text>}
+      {confirmDelete && <Text style={ui.danger}>Só é possível excluir um paciente sem documentos e sem anotações na ficha. Esta ação não pode ser desfeita.</Text>}
     </>}
     {!!error && <Text accessibilityRole="alert" style={ui.danger}>{error}</Text>}
     {editing && patient && <PatientForm patient={patient} onClose={() => setEditing(false)} onSave={async input => {

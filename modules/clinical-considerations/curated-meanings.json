@@ -312,12 +312,12 @@
           "status": "within"
         }
       ],
-      "meaning": "Linfócitos reduzidos apenas no percentual, com contagem absoluta dentro da referência; a fonte observa que pode ser útil avaliar as alterações dos leucócitos pela contagem absoluta, e não só pela relativa.",
+      "meaning": "Linfócitos reduzidos apenas no percentual, com contagem absoluta dentro da referência.",
       "page": {
         "section": "Differentiation by Type of White Blood Cell"
       },
       "excerpt": "Although the differential of the major types of WBCs is important for evaluating the cause of leukocytosis, it is sometimes helpful to think in terms of absolute, rather than relative, leukopenias and leukocytoses. To calculate the absolute cell count, the total leukocyte count is multiplied by the differential percentage.",
-      "curation_notes": "O mesmo raciocínio vale para outras células; por ora só linfócitos, o caso da amostra 1."
+      "curation_notes": "O mesmo raciocínio vale para outras células; por ora só linfócitos, o caso da amostra 1. Em 27/10/2026 saiu do significado o trecho \"pode ser útil avaliar as alterações dos leucócitos pela contagem absoluta\": no rascunho real soou como conduta."
     },
     {
       "id": "statpearls-neutrofilia",

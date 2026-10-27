@@ -2,7 +2,7 @@
 
 ## Estado e escopo
 
-Proposta iniciada em 26/10/2026, em conversa com o usuário. **Nenhum código ainda.** Antes, termina o teste das considerações clínicas em rascunho ([clinical-considerations.md](clinical-considerations.md), "Implementação do rascunho").
+Proposta iniciada em 26/10/2026, em conversa com o usuário. **Implementada em 27/10/2026 (branch dev22)**, depois do teste real das considerações clínicas.
 
 | Passo | Estado atual |
 | --- | --- |
@@ -11,7 +11,7 @@ Proposta iniciada em 26/10/2026, em conversa com o usuário. **Nenhum código ai
 | 3 — Campos | Decidido em 27/10/2026: sem campos clínicos; a ficha é dados pessoais + anotações (ver "A ficha"). |
 | 4 — Estruturado ou texto livre | Decidido em 27/10/2026: texto livre. |
 | 5 — Uso pela análise | Por ora, nenhum: as anotações são texto livre (ver "Uso pelas considerações clínicas"). |
-| 6 — Modelo de dados, interface e testes | Layout decidido em 27/10/2026 (ver "Layout"); modelo de dados e testes pendentes. |
+| 6 — Modelo de dados, interface e testes | Feito em 27/10/2026 (ver "Implementação"). |
 
 Documentos relacionados: [grants.md](grants.md) (FASE 01, documentos e compartilhamento), [profiles.md](profiles.md) (FASE 02, módulos) e [clinical-considerations.md](clinical-considerations.md) (considerações clínicas, que usariam a anamnese).
 
@@ -52,6 +52,7 @@ As anotações de consulta podem ser ditadas pelo **ditado do teclado do sistema
 - **Sem custo:** a transcrição é do sistema do celular. Cabe na gestão, que não usa IA.
 - **Privacidade:** o app não controla onde o teclado transcreve. Dependendo do aparelho e da configuração, o áudio pode ir aos servidores da Apple ou do Google. Nada de áudio é guardado pelo app.
 - **Ditado, não gravação da consulta:** o médico fala o que quer registrar.
+- **Teste de 27/10/2026, adiado:** no celular do usuário (teclado Samsung) o microfone não aparece no teclado; ditado desligado na configuração do aparelho. Caminhos: ativar "Digitação por voz" e a barra de ferramentas no teclado Samsung, ou usar o Gboard. O usuário decidiu deixar o microfone de lado por enquanto; a dica no editor continua, porque vale para outros aparelhos.
 - **Descartado por ora:** botão de microfone próprio do app (`expo-speech-recognition`, biblioteca nativa, não roda no Expo Go; permitiria exigir reconhecimento local) e transcrição na nuvem (paga). O Expo não tem módulo de fala para texto (`expo-speech` só lê texto em voz alta).
 
 ### Layout (decidido em 27/10/2026)
@@ -59,6 +60,14 @@ As anotações de consulta podem ser ditadas pelo **ditado do teclado do sistema
 Visual de fichas (cards), como os pontos de atenção da análise. A tela do paciente ganha duas abas abaixo do cabeçalho (nome, idade, sexo): **Ficha**, que abre primeiro, e **Documentos**, com a lista de hoje.
 
 Aba Ficha: botão "+ Nova anotação" no topo (campo grande, com ditado do teclado) e, abaixo, um card por anotação, a mais recente primeiro, com data e hora no topo do card. Tocar no card abre para corrigir. Sem anotações, a aba mostra "Nenhuma anotação ainda".
+
+### Implementação (27/10/2026)
+
+- **Banco:** tabela `patient_notes` (paciente, dono, texto de 1 a 20 mil caracteres, criação e atualização), migração `20261027000100`. Leitura só do dono (RLS); escrita só pelas funções `create_patient_note` (exige o módulo `patient-records`, como criar paciente) e `update_patient_note` (só o dono, sem exigir o módulo: direito de retificação). Não há função de exclusão.
+- **Paciente com anotações não pode ser excluído** (`patient_has_notes`), como já acontece com documentos. Decisão a confirmar com o usuário: hoje isso impede excluir de vez um paciente com ficha.
+- **App:** [patient.tsx](../src/app/patient.tsx) com as abas Ficha e Documentos; [PatientNotes.tsx](../src/features/patients/PatientNotes.tsx) com o botão "+ Nova anotação", um card por anotação (data e hora no topo) e o editor com dica de ditado pelo teclado.
+- **Teste no celular (27/10/2026): aprovado.** Nova anotação, segunda anotação acima da primeira, correção, aba Documentos (lista, análise e volta) e exclusão recusada (paciente com documentos). Corrigido no teste: o editor abria com o teclado e escondia o título (sem `autoFocus`).
+- **Testes:** 20 em `supabase/tests/patient_notes_rls.test.sql` (dono, outro médico, módulo vencido, correção sem histórico, exclusão bloqueada) e 3 em `tests/patients.test.cjs`.
 
 ## Relação entre gestão e análise
 
@@ -68,7 +77,7 @@ Regra definida pelo usuário em 26/10/2026: **a gestão conversa com a análise;
 2. **Gestão opcional, acima.** Quando existe, a gestão fornece dados à análise: sexo e nascimento do paciente e, no futuro, a anamnese. A análise só lê.
 3. **Sem volta.** A análise não altera nada da gestão. Ela guarda os próprios resultados (pontos de atenção, considerações, PDF) no próprio espaço.
 
-**Exceção existente, a remover:** quando o laudo imprime o sexo e o cadastro não tem, a tela da análise oferece completar o cadastro (`fillRecordSex` em [AnalysisScreen.tsx](../src/features/analyses/AnalysisScreen.tsx)). Proposta: trocar por um aviso ("o cadastro não tem o sexo; o laudo informa Masculino") com o botão "Ver paciente", e o médico preenche na ficha. O aviso de possível paciente errado continua, porque só lê.
+**Exceção removida em 27/10/2026:** a tela da análise oferecia completar o sexo do cadastro (`fillRecordSex`). Agora mostra o aviso "Cadastro incompleto" ("o laudo informa Masculino, e o cadastro não tem o sexo") com o botão "Ver paciente", e o médico completa na ficha, em "Corrigir dados". A análise não escreve mais na gestão. O aviso de possível paciente errado continua, porque só lê.
 
 **Pendente de confirmação:** hoje, para analisar, o médico envia o laudo como documento, o que faz parte da gestão. Falta decidir se basta o paciente ser opcional (como já é) ou se a análise deve ter um envio próprio.
 

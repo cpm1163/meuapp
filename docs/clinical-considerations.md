@@ -180,13 +180,15 @@ Amostra 1, extração já com Haiku 5.5 (chamada direta, ver [compliance.md](com
 
 **Pendências a corrigir:**
 
-1. **Todo ponto de atenção deve aparecer** nas considerações, com ficha ou no bloco sem fonte. Proposta: o código confere a cobertura depois da escrita e, se faltar um parâmetro, o lista ao médico ("Sem consideração: Insulina").
-2. **Guardar o motivo do descarte** (não o texto inteiro, se não for necessário) para diagnosticar casos como o da insulina.
-3. **Redação:** "Pode ser útil avaliar as alterações dos leucócitos pela contagem absoluta…" soa como conduta; "…acima da referência **indicam** aumento das frações aterogênicas" (bloco sem fonte) é afirmativo demais ("correspondem a" seria mais neutro). Avaliar ajuste nas fichas ou nas regras de conferência.
-4. **Extensão:** o hemograma ficou com 8 frases, contra 2 a 5 nos outros temas.
+1. **Todo ponto de atenção deve aparecer** nas considerações, com ficha ou no bloco sem fonte. **Feito em 27/10/2026 (`considerations/2`):** `validateDraft` lista em `uncovered` os resultados fora da referência sem nenhuma frase mantida, e a tela avisa "Sem consideração no rascunho: …". As instruções agora exigem uma frase para cada resultado sem ficha, com os nomes exatos e só de `without_card`.
+2. **Guardar o motivo do descarte.** **Feito em 27/10/2026:** `dropped_details` guarda cada frase descartada com a parte (com fonte ou sem fonte) e a regra (`conduct`, `certainty`, `unknown_parameter`…). O texto é da IA, sem valores nem identificação. Causa provável do caso da insulina: a IA listou na frase um parâmetro com ficha (HOMA-IR) junto com a insulina, e a frase inteira caiu como `unknown_parameter`.
+3. **Redação:** "Pode ser útil avaliar as alterações dos leucócitos pela contagem absoluta…" soa como conduta; "…acima da referência **indicam** aumento das frações aterogênicas" (bloco sem fonte) é afirmativo demais ("correspondem a" seria mais neutro). **Feito em 27/10/2026:** a primeira vinha da própria ficha `riley-linfocitos-so-percentual`, e o trecho saiu do significado; "indica/indicam" passou a ser barrado como certeza e foi proibido nas instruções.
+4. **Extensão:** o hemograma ficou com 8 frases, contra 2 a 5 nos outros temas. **Feito em 27/10/2026:** as instruções pedem no máximo cinco frases por tema (orientação, não conferência).
 5. **Origem dos dados:** a extração veio do Haiku; conferir contra os gabaritos da amostra 1 (`tests/fixtures/private/`) antes de avaliar a escolha das fichas.
 6. **Unidade repetida (extração do Haiku):** o PDF mostra "261 mg/dL mg/dL", "5,7 % %", "8 µL µL", "2,13 mg/g de Creatinina mg/g de Creatinina": o valor transcrito já traz a unidade. **Corrigido em 27/10/2026** no app e no PDF: `valueWithUnit` ([findings-text.ts](../src/features/analyses/findings-text.ts)) não repete a unidade quando o valor já termina com ela; vale também para análises antigas.
 7. **Linha espúria no hemograma:** "Leucócitos 100 % %, sem referência" (o total do diferencial lido como parâmetro). **Corrigido em 27/10/2026:** valor e referência iguais a 100 % saem das tabelas (`isDifferentialTotal` em [report.ts](../src/features/analyses/report.ts)).
+
+**Segundo teste real (27/10/2026, `considerations/2`): aprovado.** Amostra 1 de novo (Haiku, 118 s), considerações em 13 s (3 mil tokens de entrada e 1,4 mil de saída). A insulina entrou no bloco sem fonte; nenhuma frase descartada; nada sem consideração; hemograma com 5 frases; sem "pode ser útil avaliar" e sem "indica" (o LDL agora diz "são compatíveis com").
 
 **PDF (27/10/2026): aprovado no teste.** Traz só o texto aprovado, "Revisado pelo médico em 27/10/2026", as referências numeradas batendo com o texto e o bloco "Análise da IA, sem fonte verificada" separado. Aprovação sem edição também funcionou.
 
