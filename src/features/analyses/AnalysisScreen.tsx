@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Action, styles } from '@/features/modules/ui';
 import { createDocumentService, type DocumentRecord } from '@/features/documents/service';
-import { createPatientService, patientError } from '@/features/patients/service';
 import { analysisError, createAnalysisService, failureText, type Analysis, type AnalysisSummary, type ConsiderationsDraft, type ModuleAccess, type Quota } from './service';
 import curatedJson from '../../../modules/clinical-considerations/curated-meanings.json';
 import type { CuratedMeanings } from '../../../modules/clinical-considerations/meanings';
@@ -16,6 +15,8 @@ import { shareReportPdf } from './share-report';
 import { CONSIDERATIONS_MODULE } from './considerations';
 
 type Props = { documentId: string; accessToken: string };
+// Tabs of a ready analysis (decided 27/10/2026): the points of attention open first; the PDF keeps everything in sequence.
+type Tab = 'attention' | 'exams' | 'considerations' | 'history';
 
 const curatedMeanings = curatedJson as unknown as CuratedMeanings;
 // A direct analysis ends in a minute or two. Checking costs no AI tokens (it only reads the status).
@@ -58,7 +59,6 @@ function Step({ state, label, detail }: { state: 'done' | 'current' | 'pending';
 export function AnalysisScreen({ documentId, accessToken }: Props) {
   const analyses = useMemo(() => createAnalysisService(accessToken), [accessToken]);
   const documents = useMemo(() => createDocumentService(accessToken), [accessToken]);
-  const patients = useMemo(() => createPatientService(accessToken), [accessToken]);
   const [document, setDocument] = useState<DocumentRecord | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [history, setHistory] = useState<AnalysisSummary[]>([]);
@@ -71,6 +71,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [confirmingSend, setConfirmingSend] = useState(false);
   const [openNotes, setOpenNotes] = useState<number[]>([]);
+  const [tab, setTab] = useState<Tab>('attention');
   const [query, setQuery] = useState('');
   // Android draws edge-to-edge, so the window is not resized for the keyboard: the search bar is lifted by hand to
   // where the keyboard starts. The SafeAreaView already pads the navigation bar, so that inset is discounted.
@@ -130,13 +131,15 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
   }, [apply, fetchAll]);
 
   const processing = analysis?.status === 'processing';
+  // The double check runs after the reading is shown; keep checking until it ends.
+  const verifying = analysis?.status === 'ready' && analysis.verification?.status === 'running';
   useEffect(() => {
-    if (!processing) return;
+    if (!processing && !verifying) return;
     const first = setTimeout(() => { void check(); }, 0);
     const timer = setInterval(() => { void check(); }, POLL_MS);
     const listener = AppState.addEventListener('change', state => { if (state === 'active') void check(); });
     return () => { clearTimeout(first); clearInterval(timer); listener.remove(); };
-  }, [processing, check]);
+  }, [processing, verifying, check]);
   // Live clock for the elapsed time and the countdown to the next check.
   useEffect(() => {
     if (!processing) return;
@@ -154,7 +157,8 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
     finally { if (mounted.current) { setBusy(false); await load(); } }
   }
 
-  async function openPrevious(id: string) {
+  // A stable callback: the history list passes it to its buttons during render.
+  const openPrevious = useCallback(async (id: string) => {
     if (busy) return;
     setBusy(true); setError('');
     try {
@@ -162,7 +166,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
       if (mounted.current) setViewing(previous);
     } catch (e) { if (mounted.current) setError(analysisError(e)); }
     finally { if (mounted.current) setBusy(false); }
-  }
+  }, [analyses, busy]);
 
   async function openOriginal() {
     if (!document || busy) return;
@@ -175,7 +179,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
   const shown = viewing ?? analysis;
   const report = useMemo(() => shown?.status === 'ready' && shown.extraction
     ? buildReport(shown.extraction, shown.findings ?? [], document?.patient
-      ? { sex: document.patient.sex, birthDate: document.patient.birth_date } : null)
+      ? { sex: document.patient.sex, birthDate: document.patient.birth_date } : null, shown.verification)
     : null, [shown, document]);
   // Level B: only for accounts with the considerations module granted (testing). Any error hides the section.
   useEffect(() => {
@@ -210,21 +214,6 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
   const foundConsiderations = considerationsReady && searching
     && searchConsiderations(approved?.text ?? draftView?.text ?? '', query);
   const foundCount = found.reduce((total, item) => total + item.exam.rows.length, 0) + (foundConsiderations ? 1 : 0);
-
-  // Completes only the sex; the other fields are sent back as they are in the record.
-  async function fillRecordSex(sex: 'female' | 'male') {
-    const patientId = document?.patient_id;
-    if (!patientId || busy) return;
-    setBusy(true); setError('');
-    try {
-      const patient = await patients.get(patientId);
-      if (!patient) throw new Error('missing');
-      await patients.update(patientId, { displayName: patient.display_name, cpf: patient.cpf ?? '', birthDate: patient.birth_date, sex });
-      const doc = await documents.get(documentId);
-      if (mounted.current) setDocument(doc);
-    } catch (e) { if (mounted.current) setError(patientError(e)); }
-    finally { if (mounted.current) setBusy(false); }
-  }
 
   async function sendReport() {
     if (!report || !shown || busy) return;
@@ -304,6 +293,8 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
           ? <Text style={[styles.hint, { color: STATUS_COLORS.within.text, fontWeight: '600' }]}>Revisado pelo médico em {new Date(approved.approvedAt).toLocaleDateString('pt-BR')}. Só este texto vai para o PDF.</Text>
           : <Text style={[styles.hint, { backgroundColor: TONE_COLORS.check.background, color: TONE_COLORS.check.text, padding: 8,
             borderRadius: 8, overflow: 'hidden', fontWeight: '600' }]}>{DRAFT_NOTE}</Text>}
+        {!!draftRow?.draft?.uncovered?.length && <Text accessibilityRole="alert" style={[styles.hint, { color: TONE_COLORS.check.text, fontWeight: '600' }]}>
+          Sem consideração no rascunho: {draftRow.draft.uncovered.join(', ')}. Se quiser, escreva sobre eles em Editar.</Text>}
         {text ? renderConsiderationsText(text) : <Text style={styles.subtitle}>Nenhum achado com significado para descrever.</Text>}
         {!!text && <View style={styles.actions}>
           <Action title="Editar" disabled={draftBusy} onPress={() => setEditing(text)} />
@@ -359,6 +350,41 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
     </View>;
   }
 
+  function renderHistory() {
+    if (history.length <= 1) return null;
+    return <View style={styles.card}>
+      <Text style={styles.cardTitle}>Análises deste exame ({history.length})</Text>
+      {history.map((item, index) => {
+        const current = (viewing?.id ?? analysis?.id) === item.id;
+        const label = `${formatDate(item.created_at)} · ${HISTORY_STATUSES[item.status]}${index === 0 ? ' · mais recente' : ''}`;
+        return current ? <Text key={item.id} style={[styles.subtitle, { fontWeight: '600' }]}>{label} (aberta)</Text>
+          : <Action key={item.id} title={label} disabled={busy}
+            onPress={() => { if (index === 0) setViewing(null); else void openPrevious(item.id); }} />;
+      })}
+    </View>;
+  }
+
+  // Confirmation of a new analysis, opened by the button at the top (decided 27/10/2026).
+  function renderConfirm() {
+    return <View style={styles.card}>
+      {quota && <Text style={styles.hint}>Restam {quota.remaining} de {quota.daily_limit} análises nas próximas 24 horas.</Text>}
+      <Text style={styles.subtitle}>O laudo será enviado ao serviço de IA (Anthropic, processamento fora do Brasil) para transcrição. A análise conta no limite diário e costuma levar de 1 a 2 minutos.</Text>
+      <View style={styles.actions}>
+        <Action title="Confirmar análise" disabled={busy || !canStart} onPress={() => void start()} />
+        <Action title="Cancelar" disabled={busy} onPress={() => setConfirming(false)} />
+      </View>
+    </View>;
+  }
+
+  const tabs: { value: Tab; label: string }[] = [
+    { value: 'attention', label: `Atenção ${report?.highlights.length ?? ''}`.trim() },
+    { value: 'exams', label: `Exames ${report?.exams.length ?? ''}`.trim() },
+    // Consid. 0: the draft was not generated yet.
+    ...(considerationsReady ? [{ value: 'considerations' as const,
+      label: `Consid. ${textBlocks(approved?.text ?? draftView?.text ?? '').length}` }] : []),
+    { value: 'history', label: `Histórico ${history.length}` },
+  ];
+
   const canStart = access === 'ready' && document?.owner_id !== undefined && !processing
     && ['uploaded', 'ready', 'failed'].includes(document.status) && (quota?.remaining ?? 0) > 0;
 
@@ -376,7 +402,13 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
           {/* Returns to the patient if it is already in the stack, otherwise replaces this screen with it. */}
           {!!document.patient_id && !!document.patient &&
             <Action title="Ver paciente" disabled={busy} onPress={() => router.dismissTo({ pathname: '/patient', params: { patientId: document.patient_id! } })} />}
+          {access === 'ready' && !processing && !viewing &&
+            <Action title={busy ? 'Aguarde…' : analysis ? 'Analisar novamente' : 'Analisar laudo'} disabled={busy || !canStart || confirming}
+              onPress={() => setConfirming(true)} />}
         </View>}
+        {access === 'ready' && quota?.remaining === 0 && <Text style={styles.hint}>Limite diário de análises atingido.{
+          quota.next_available_at ? ` A próxima fica disponível em ${new Date(quota.next_available_at).toLocaleString('pt-BR')}.` : ''}</Text>}
+        {confirming && !processing && !viewing && renderConfirm()}
         {!!error && <Text accessibilityRole="alert" style={styles.danger}>{error}</Text>}
       </View>
 
@@ -400,7 +432,7 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
         <Step state="done" label="Laudo enviado"
           detail={`às ${new Date(analysis.created_at).toLocaleTimeString('pt-BR')}`} />
         <Step state="current" label="Em leitura pela IA"
-          detail="Na fila de processamento da Anthropic. A maioria termina em até 1 hora (no máximo 24 horas)." />
+          detail="A IA está lendo o laudo. Costuma levar de 1 a 2 minutos." />
         <Step state="pending" label="Pontos de atenção gerados" detail="Conferidos por regras do app, sem interpretação clínica." />
         <Text style={styles.hint}>{checking ? 'Verificando…'
           : lastCheck ? `Verificado às ${new Date(lastCheck).toLocaleTimeString('pt-BR')}${nextCheck !== null ? ` · próxima verificação em ${nextCheck} s` : ''}`
@@ -430,18 +462,24 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
           {!!document?.patient_id && <Action title="Ver paciente" disabled={busy}
             onPress={() => router.dismissTo({ pathname: '/patient', params: { patientId: document.patient_id! } })} />}
         </View>}
+        {/* The analysis only reads the patient record (docs/anamnesis.md): the doctor completes it in the record. */}
         {!!document?.patient_id && (report.recordGaps.sex || report.recordGaps.age !== null) && <View style={styles.card}>
-          <Text style={styles.cardTitle}>Completar o cadastro</Text>
+          <Text style={styles.cardTitle}>Cadastro incompleto</Text>
           <Text style={styles.subtitle}>O laudo informa {[report.recordGaps.sex ? sexText(report.recordGaps.sex) : null,
             report.recordGaps.age !== null ? `${report.recordGaps.age} anos` : null].filter(Boolean).join(', ')}, e o cadastro do paciente não tem {
             [report.recordGaps.sex ? 'o sexo' : null, report.recordGaps.age !== null ? 'a data de nascimento' : null].filter(Boolean).join(' nem ')}.</Text>
-          {!!report.recordGaps.sex && <Action title={`Usar ${sexText(report.recordGaps.sex)} no cadastro`} disabled={busy}
-            onPress={() => void fillRecordSex(report.recordGaps.sex!)} />}
-          {report.recordGaps.age !== null && <>
-            <Text style={styles.hint}>A data de nascimento não vem do laudo: cadastre-a no paciente para o app conferir a idade nos próximos exames.</Text>
-            <Action title="Ver paciente" disabled={busy}
-              onPress={() => router.dismissTo({ pathname: '/patient', params: { patientId: document.patient_id! } })} />
-          </>}
+          <Text style={styles.hint}>Complete na ficha do paciente, em “Corrigir dados”, para o app conferir os próximos exames.</Text>
+          <Action title="Ver paciente" disabled={busy}
+            onPress={() => router.dismissTo({ pathname: '/patient', params: { patientId: document.patient_id! } })} />
+        </View>}
+        {!!report.verification && <View style={[styles.card, report.verification.alerts.length ? { backgroundColor: '#FDECEA' } : null]}
+          accessibilityRole={report.verification.alerts.length ? 'alert' : undefined} accessibilityLiveRegion="polite">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {report.verification.running && <ActivityIndicator size="small" color="#55439F" />}
+            <Text style={[styles.cardTitle, report.verification.alerts.length ? { color: '#B42318' } : null]}>Conferência da leitura</Text>
+          </View>
+          {report.verification.alerts.map(line => <Text key={line} style={[styles.subtitle, { fontWeight: '600' }]}>{line}</Text>)}
+          {report.verification.notes.map(line => <Text key={line} style={styles.hint}>{line}</Text>)}
         </View>}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Relatório</Text>
@@ -458,16 +496,25 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
           </> : <Action title={busy ? 'Aguarde…' : 'Enviar relatório (PDF)'} disabled={busy} onPress={() => setConfirmingSend(true)} />)}
         </View>
 
-        <Text style={styles.cardTitle}>Pontos de atenção</Text>
-        {renderFindings(report.highlights)}
+        <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: 6 }}>
+          {tabs.map(option => <Pressable key={option.value} accessibilityRole="tab" accessibilityState={{ selected: tab === option.value }}
+            onPress={() => { setTab(option.value); scroll.current?.scrollTo({ y: 0, animated: false }); }}
+            style={[styles.chip, { flex: 1, paddingHorizontal: 4, alignItems: 'center' }, tab === option.value && styles.activeChip]}>
+            <Text numberOfLines={1} style={[styles.buttonText, { fontSize: 13 }]}>{option.label}</Text>
+          </Pressable>)}
+        </View>
 
-        <Text style={styles.cardTitle}>Resultados por exame</Text>
-        {report.exams.map((exam, examIndex) => renderExam(exam, examIndex))}
-        {considerationsReady && renderConsiderations()}
-        {report.otherExams.length > 0 && <View style={styles.card}>
-          <Text style={styles.cardTitle}>Não analisados</Text>
-          <Text style={styles.subtitle}>{report.otherExams.join(' · ')}</Text>
-        </View>}
+        {tab === 'attention' && renderFindings(report.highlights)}
+        {tab === 'exams' && <>
+          {report.exams.map((exam, examIndex) => renderExam(exam, examIndex))}
+          {report.otherExams.length > 0 && <View style={styles.card}>
+            <Text style={styles.cardTitle}>Não analisados</Text>
+            <Text style={styles.subtitle}>{report.otherExams.join(' · ')}</Text>
+          </View>}
+        </>}
+        {tab === 'considerations' && considerationsReady && renderConsiderations()}
+        {tab === 'history' && renderHistory()}
+        {tab === 'history' && history.length <= 1 && <Text style={styles.empty}>Esta é a única análise deste exame.</Text>}
       </>}
 
       {!loading && shown?.status === 'ready' && !report && <>
@@ -477,30 +524,8 @@ export function AnalysisScreen({ documentId, accessToken }: Props) {
         {renderFindings(shown.findings ?? [])}
       </>}
 
-      {!loading && !searching && history.length > 1 && <View style={styles.card}>
-        <Text style={styles.cardTitle}>Análises deste exame ({history.length})</Text>
-        {history.map((item, index) => {
-          const current = (viewing?.id ?? analysis?.id) === item.id;
-          const label = `${formatDate(item.created_at)} · ${HISTORY_STATUSES[item.status]}${index === 0 ? ' · mais recente' : ''}`;
-          return current ? <Text key={item.id} style={[styles.subtitle, { fontWeight: '600' }]}>{label} (aberta)</Text>
-            : <Action key={item.id} title={label} disabled={busy}
-              onPress={() => { if (index === 0) setViewing(null); else void openPrevious(item.id); }} />;
-        })}
-      </View>}
-
-      {!loading && !searching && !viewing && access === 'ready' && !processing && <View style={styles.card}>
-        {quota && <Text style={styles.hint}>{quota.remaining > 0
-          ? `Restam ${quota.remaining} de ${quota.daily_limit} análises nas próximas 24 horas.`
-          : `Limite diário atingido.${quota.next_available_at ? ` A próxima fica disponível em ${new Date(quota.next_available_at).toLocaleString('pt-BR')}.` : ''}`}</Text>}
-        {confirming ? <>
-          <Text style={styles.subtitle}>O laudo será enviado ao serviço de IA (Anthropic, processamento fora do Brasil) para transcrição. A análise conta no limite diário e pode levar até 1 hora.</Text>
-          <View style={styles.actions}>
-            <Action title="Confirmar análise" disabled={busy || !canStart} onPress={() => void start()} />
-            <Action title="Cancelar" disabled={busy} onPress={() => setConfirming(false)} />
-          </View>
-        </> : <Action title={busy ? 'Aguarde…' : analysis ? 'Analisar novamente' : 'Analisar laudo'} disabled={busy || !canStart}
-          onPress={() => setConfirming(true)} />}
-      </View>}
+      {/* Without a ready report there are no tabs: the history stays in the page. */}
+      {!loading && !searching && !(shown?.status === 'ready' && report) && renderHistory()}
     </ScrollView>
     {!loading && !!report && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16,
       paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#E4E1F0', backgroundColor: '#FFF', marginBottom: keyboardLift }}>

@@ -365,6 +365,39 @@ test('the block without source names only results without card and cites nothing
   assert.equal(draft.dropped, 3);
 });
 
+test('dropped sentences keep their rule, and results without any kept sentence are listed for the doctor', () => {
+  const draft = writing.validateDraft(answer([{theme: 'Metabolismo glicêmico', sentences: [
+    sentence('A hemoglobina glicada está na faixa de pré-diabetes.', ['sbd-hba1c-pre-diabetes']),
+    sentence('Recomenda-se repetir o exame.', ['sbd-hba1c-pre-diabetes']),
+  ]}], [
+    // The case of sample 1: a parameter with a card listed next to the one without card drops the whole sentence.
+    {text: 'A insulina elevada, junto com o HOMA-IR, pode estar associada a resistência à insulina.', parameters: ['Insulina', 'HOMA-IR']},
+    {text: 'O LDL acima da referência indica maior risco cardiovascular.', parameters: ['LDL - Colesterol']},
+  ]), sampleSelection());
+  assert.deepEqual(draft.dropped_details.map(item => [item.part, item.rule]),
+    [['sourced', 'conduct'], ['unsourced', 'unknown_parameter'], ['unsourced', 'certainty']]);
+  assert.equal(draft.dropped, 3);
+  assert.equal(draft.dropped_details[1].text, 'A insulina elevada, junto com o HOMA-IR, pode estar associada a resistência à insulina.');
+  // Only the HbA1c card was cited: every other result outside the reference is uncovered; a card parameter within the
+  // reference (albumin/creatinine ratio, absolute lymphocytes) is not expected to be covered.
+  assert.ok(draft.uncovered.includes('Insulina'));
+  assert.ok(draft.uncovered.includes('LDL - Colesterol'));
+  assert.ok(draft.uncovered.includes('HOMA-IR'));
+  assert.ok(!draft.uncovered.includes('Hemoglobina Glicada - HbA1c'));
+  assert.ok(!draft.uncovered.includes('Relação Albumina/Creatinina'));
+});
+
+test('a draft that covers every result has nothing uncovered', () => {
+  const selection = sampleSelection();
+  const draft = writing.validateDraft(answer(selection.selected.map(card => ({theme: 'Tema', sentences: [
+    sentence('Achado compatível com o descrito na ficha.', [card.id])]})), [
+    {text: 'A insulina acima da referência pode estar associada a menor sensibilidade à insulina.', parameters: ['Insulina']},
+    {text: 'O LDL acima da referência pode estar associado a maior risco cardiovascular.', parameters: ['LDL - Colesterol']},
+  ]), selection);
+  assert.deepEqual(draft.uncovered, []);
+  assert.equal(draft.dropped, 0);
+});
+
 test('an answer that is not the expected JSON is rejected', () => {
   assert.equal(writing.validateDraft('não é JSON', sampleSelection()), null);
   assert.equal(writing.validateDraft('{"paragraphs": []}', sampleSelection()), null);

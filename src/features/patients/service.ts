@@ -8,6 +8,9 @@ export type Patient = {
   sex: 'female' | 'male' | null;
   created_at: string;
 };
+// Anamnese: free-text notes of the patient's record, most recent first (docs/anamnesis.md).
+export type PatientNote = { id: string; patient_id: string; body: string; created_at: string; updated_at: string };
+export const NOTE_MAX_LENGTH = 20000;
 export type PatientListItem = Patient & { document_count: number; last_activity_at: string };
 export type PatientInput = { displayName: string; cpf: string; birthDate: string | null; sex: Patient['sex'] };
 
@@ -50,6 +53,21 @@ export function createPatientService(accessToken: string) {
       const { error } = await client.rpc('delete_patient', { patient_id: id });
       if (error) throw error;
     },
+    async listNotes(patientId: string) {
+      const { data, error } = await client.from('patient_notes').select('id, patient_id, body, created_at, updated_at')
+        .eq('patient_id', patientId).order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as PatientNote[];
+    },
+    async createNote(patientId: string, body: string) {
+      const { error } = await client.rpc('create_patient_note', { patient_id: patientId, body: body.trim() });
+      if (error) throw error;
+    },
+    // Only the corrected text is kept (decided 27/10/2026).
+    async updateNote(noteId: string, body: string) {
+      const { error } = await client.rpc('update_patient_note', { note_id: noteId, body: body.trim() });
+      if (error) throw error;
+    },
     // A null patient unlinks the document.
     async setDocumentPatient(documentId: string, patientId: string | null) {
       const { error } = await client.rpc('set_document_patient', { document_id: documentId, patient_id: patientId });
@@ -88,6 +106,13 @@ export function formatBirthDate(date: string | null) {
   return date ? date.split('-').reverse().join('/') : '';
 }
 
+// Entry time of a note in the device's time zone: 27/10/2026 · 14:32.
+export function formatNoteDate(iso: string) {
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function patientError(error: unknown): string {
   if (typeof __DEV__ !== 'undefined' && __DEV__) console.warn('[patients]', error);
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
@@ -95,6 +120,8 @@ export function patientError(error: unknown): string {
   if (message === 'invalid_cpf') return 'CPF inválido. Confira os números.';
   if (message === 'invalid_birth_date') return 'Informe uma data de nascimento válida.';
   if (message === 'patient_has_documents') return 'Este paciente ainda tem documentos. Exclua ou desvincule os documentos antes.';
+  if (message === 'patient_has_notes') return 'Este paciente tem anotações na ficha e não pode ser excluído.';
+  if (message === 'note_not_available') return 'Anotação indisponível. Atualize a ficha.';
   if (message === 'module_not_available') return 'A gestão por paciente não está liberada para você. Veja em “Meus módulos”.';
   if (code === '23505') return 'Você já cadastrou um paciente com este CPF.';
   if (code === '23514') return 'Confira o nome do paciente.';

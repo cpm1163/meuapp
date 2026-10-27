@@ -100,6 +100,19 @@ O laboratório continua sendo só contexto extraído do laudo. Um laudo pode tra
 
 Fica para depois: a conferência dos valores pelo médico e a comparação (passos 4 a 7 desta fase). **Foto no cadastro do paciente:** adiada pelo usuário em 16/10/2026. Ao retomar, considerar a minimização (LGPD; foto de rosto pode ser dado biométrico), um bucket privado só do dono e a exclusão da foto junto com o paciente.
 
+### Tela "Análise do laudo" em abas (27/10/2026)
+
+Decidido com o usuário: a rolagem única ficou longa demais. No topo, sempre visíveis: exame, paciente, avisos de segurança ("Confira se este exame é deste paciente", "Cadastro incompleto") e o card do relatório (laboratório, coleta, idade e sexo, aviso, "Enviar relatório (PDF)"). Abaixo, quatro abas:
+
+1. **Atenção** (abre primeiro, com o número de pontos): os pontos de atenção em cards.
+2. **Exames:** resultados por exame e os não analisados.
+3. **Consid.:** considerações clínicas (só para quem tem o módulo).
+4. **Histórico:** análises deste exame, com data e hora, e o botão "Analisar novamente" com o limite diário.
+
+**Pendente (pedido do usuário em 27/10/2026, para depois):** o botão "Analisar novamente" sai da aba Histórico e vai para o topo, ao lado de "Abrir exame" e "Ver paciente".
+
+A busca continua no rodapé e mostra os resultados no lugar das abas. Sem análise pronta (em andamento ou falha) não há abas. **O PDF não muda:** tudo em sequência.
+
 ## Modelo de dados proposto
 
 ### `patients`

@@ -7,7 +7,7 @@
 
 import {hasNumbers, type Selection} from './meanings.ts';
 
-export const WRITING_VERSION = 'considerations/1';
+export const WRITING_VERSION = 'considerations/2';
 export const WRITING_MODEL = 'claude-opus-5-5';
 export const WRITING_EFFORT = 'medium';
 export const WRITING_MAX_TOKENS = 16000;
@@ -19,7 +19,14 @@ export type Draft = {
   unsourced: {text: string; parameters: string[]}[];
   /** Sentences dropped by the checks, for the record. */
   dropped: number;
+  /** Each dropped sentence with the rule it broke, to diagnose gaps (considerations/2). */
+  dropped_details?: DroppedSentence[];
+  /** Results outside the reference that no kept sentence covers, shown to the doctor (considerations/2). */
+  uncovered?: string[];
 };
+export type DropRule = 'empty' | 'too_long' | 'numbers' | 'conduct' | 'certainty' | 'no_card' | 'unknown_card'
+  | 'side' | 'unknown_parameter' | 'citation' | 'theme';
+export type DroppedSentence = {part: 'sourced' | 'unsourced'; text: string; rule: DropRule};
 
 const STATUS_TEXT: Record<string, string> = {
   above: 'acima da referência impressa', below: 'abaixo da referência impressa', within: 'dentro da referência impressa',
@@ -31,7 +38,7 @@ const MAX_THEME = 60;
 const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 // Conduct, prescription and certainty about the patient stay out (docs/clinical-considerations.md).
 const CONDUCT = /\b(solicit|recomend|deve(m|ria)?\b|tratar|tratamento|inici(ar|e)|prescrev|suspend|encaminh|repetir|investig|acompanhar|considerar)/;
-const CERTAINTY = /\b(o paciente (tem|apresenta|possui|e portador)|diagnostico de|confirma)/;
+const CERTAINTY = /\b(o paciente (tem|apresenta|possui|e portador)|diagnostico de|confirma|indica(m)?\b)/;
 // The block without source must not look sourced: no citation markers, guideline or society names.
 const CITATION = /\[|\bet al\b|diretriz|guideline|sociedade|\bsb[a-z]{1,3}\b|kdigo|\boms\b|\bwho\b/;
 const RAISED = /elevad|aument|acima|\balt[oa]s?\b/;
@@ -96,14 +103,16 @@ Parte 1 — paragraphs (com base nas fichas)
 - Use somente o que as fichas dizem. Não acrescente significado, causa, risco ou associação que nenhuma ficha traga. Você pode reescrever com suas palavras e ligar as fichas entre si.
 - Cada frase indica em card_ids as fichas que a sustentam. Toda frase precisa de pelo menos uma ficha.
 - Mencione os avisos (caveats) das fichas quando couberem.
+- No máximo cinco frases por tema: junte as fichas em frases mais completas em vez de repetir.
 
 Parte 2 — unsourced (sem ficha)
-- Para os resultados de without_card, escreva uma ou duas frases sobre o que o achado pode significar, com base em conhecimento geral. Em parameters, liste os nomes exatos dos resultados de que a frase trata.
+- Todo resultado de without_card precisa aparecer em pelo menos uma frase. Escreva uma ou duas frases por resultado (ou por grupo de resultados relacionados) sobre o que o achado pode significar, com base em conhecimento geral.
+- Em parameters, liste só nomes de without_card, copiados exatamente como recebidos. Não liste parâmetros das fichas.
 - Não cite diretriz, sociedade, autor nem referência: esse bloco é mostrado como análise sem fonte verificada.
 
 Regras para todo o texto
 - Sem números: nada de valores, limites, porcentagens ou anos. Nomes de categoria como G2 e A1 podem aparecer. Escreva "hemoglobina glicada", não "HbA1c".
-- Linguagem de hipótese: "compatível com", "pode estar associado a". Nunca afirme que o paciente tem uma doença.
+- Linguagem de hipótese: "compatível com", "pode estar associado a". Nunca afirme que o paciente tem uma doença nem use "indica".
 - Sem conduta: não sugira exames, tratamento, encaminhamento, repetição ou acompanhamento.
 - Português do Brasil, frases curtas e claras. Temas com até 60 caracteres.`;
 
@@ -118,15 +127,21 @@ export function buildWritingParams(input: ReturnType<typeof writingInput>) {
   };
 }
 
-function breaksCommonRules(text: string): boolean {
+function commonRule(text: string): DropRule | null {
   const plain = normalize(text);
-  return !text.trim() || text.length > MAX_SENTENCE || hasNumbers(text) || CONDUCT.test(plain) || CERTAINTY.test(plain);
+  if (!text.trim()) return 'empty';
+  if (text.length > MAX_SENTENCE) return 'too_long';
+  if (hasNumbers(text)) return 'numbers';
+  if (CONDUCT.test(plain)) return 'conduct';
+  if (CERTAINTY.test(plain)) return 'certainty';
+  return null;
 }
 
 /**
  * Checks the AI answer against the selection and keeps only the sentences that pass. A sentence in the sourced part
  * must cite selected cards, and may say "raised" or "lowered" only when one of its cards has a parameter on that side
- * (or the card's own meaning says so). Null when the answer is not the expected JSON.
+ * (or the card's own meaning says so). Null when the answer is not the expected JSON. Every dropped sentence is kept
+ * with its rule, and the results outside the reference that no kept sentence covers are listed for the doctor.
  */
 export function validateDraft(text: string, selection: Selection): Draft | null {
   let parsed: unknown;
@@ -135,7 +150,7 @@ export function validateDraft(text: string, selection: Selection): Draft | null 
   if (!Array.isArray(answer?.paragraphs) || !Array.isArray(answer?.unsourced)) return null;
   const cards = new Map(selection.selected.map(card => [card.id, card]));
   const withoutCard = new Map(selection.unexplained.map(item => [item.name, item.status]));
-  let dropped = 0;
+  const droppedDetails: DroppedSentence[] = [];
 
   const sideAllowed = (sentence: string, ids: string[], side: 'above' | 'below') => {
     const words = side === 'above' ? RAISED : LOWERED;
@@ -153,13 +168,13 @@ export function validateDraft(text: string, selection: Selection): Draft | null 
     for (const item of Array.isArray(paragraph?.sentences) ? paragraph.sentences as {text?: unknown; card_ids?: unknown}[] : []) {
       const sentence = typeof item?.text === 'string' ? item.text.trim() : '';
       const ids = Array.isArray(item?.card_ids) ? [...new Set(item.card_ids.filter((id): id is string => typeof id === 'string'))] : [];
-      const ok = ids.length > 0 && ids.every(id => cards.has(id)) && !breaksCommonRules(sentence)
-        && sideAllowed(sentence, ids, 'above') && sideAllowed(sentence, ids, 'below');
-      if (ok) sentences.push({text: sentence, card_ids: ids});
-      else dropped++;
+      const rule: DropRule | null = ids.length === 0 ? 'no_card' : !ids.every(id => cards.has(id)) ? 'unknown_card'
+        : commonRule(sentence) ?? (sideAllowed(sentence, ids, 'above') && sideAllowed(sentence, ids, 'below') ? null : 'side');
+      if (rule) droppedDetails.push({part: 'sourced', text: sentence, rule});
+      else sentences.push({text: sentence, card_ids: ids});
     }
     if (sentences.length && theme && theme.length <= MAX_THEME && !hasNumbers(theme)) paragraphs.push({theme, sentences});
-    else dropped += sentences.length;
+    else droppedDetails.push(...sentences.map(item => ({part: 'sourced' as const, text: item.text, rule: 'theme' as const})));
   }
 
   const unsourced: Draft['unsourced'] = [];
@@ -168,13 +183,22 @@ export function validateDraft(text: string, selection: Selection): Draft | null 
     const names = Array.isArray(item?.parameters) ? [...new Set(item.parameters.filter((name): name is string => typeof name === 'string'))] : [];
     const plain = normalize(sentence);
     const sides = names.map(name => withoutCard.get(name));
-    const ok = names.length > 0 && names.every(name => withoutCard.has(name)) && !breaksCommonRules(sentence)
-      && !CITATION.test(plain) && (!RAISED.test(plain) || sides.includes('above'))
-      && (!LOWERED.test(plain) || sides.includes('below'));
-    if (ok) unsourced.push({text: sentence, parameters: names});
-    else dropped++;
+    const rule: DropRule | null = names.length === 0 || !names.every(name => withoutCard.has(name)) ? 'unknown_parameter'
+      : commonRule(sentence) ?? (CITATION.test(plain) ? 'citation'
+        : (RAISED.test(plain) && !sides.includes('above')) || (LOWERED.test(plain) && !sides.includes('below')) ? 'side' : null);
+    if (rule) droppedDetails.push({part: 'unsourced', text: sentence, rule});
+    else unsourced.push({text: sentence, parameters: names});
   }
-  return {paragraphs, unsourced, dropped};
+
+  const covered = new Set([
+    ...paragraphs.flatMap(paragraph => paragraph.sentences.flatMap(sentence => sentence.card_ids))
+      .flatMap(id => cards.get(id)!.parameters.map(item => item.name)),
+    ...unsourced.flatMap(item => item.parameters),
+  ]);
+  const expected = [...selection.selected.flatMap(card => card.parameters), ...selection.unexplained]
+    .filter(item => item.status !== 'within').map(item => item.name);
+  const uncovered = [...new Set(expected.filter(name => !covered.has(name)))];
+  return {paragraphs, unsourced, dropped: droppedDetails.length, dropped_details: droppedDetails, uncovered};
 }
 
 export const UNSOURCED_TITLE = 'Análise da IA, sem fonte verificada';

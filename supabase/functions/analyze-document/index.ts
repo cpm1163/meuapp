@@ -1,14 +1,19 @@
 // Starts the lab-report analysis of a document (docs/compliance.md, Função de análise).
 // 1. The database authorizes with the user's token (module, grant, terms, owner, daily limit) and reserves the document.
 // 2. The file is downloaded with the server credential and sent in one direct, streamed call (decided on 27/10/2026:
-//    the batch queue took hours). The call runs as a background task, so the app gets 202 at once and polls the status.
-// 3. The answer is validated and recorded here; collect-analyses only finishes batches submitted before.
+//    the batch queue took hours). A long PDF goes in parts read at the same time and merged (parts.ts). The calls run
+//    as a background task, so the app gets 202 at once and polls the status.
+// 3. The answer is validated and recorded here, then verify-analysis double-checks it; collect-analyses only finishes
+//    batches submitted before.
 
 import Anthropic from '@anthropic-ai/sdk';
 import {encodeBase64} from '@std/encoding/base64';
 import schema from '../../../modules/lab-report/extraction.schema.json' with {type: 'json'};
-import {type BatchResult, buildRequestParams, interpretResult, MODEL, MODULE_VERSION, type Outcome} from '../../../modules/lab-report/request.ts';
+import {mergeParts, partPrompt} from '../../../modules/lab-report/parts.ts';
+import {type BatchResult, buildRequestParams, finishOutcome, interpretResult, MODEL, MODULE_VERSION, type Outcome, readResult,
+  type Reading} from '../../../modules/lab-report/request.ts';
 import {anthropicClient, authenticate, corsHeaders, errorResponse, json, log, serviceClient} from '../_shared/common.ts';
+import {pdfParts} from '../_shared/pdf.ts';
 import {recordOutcome} from '../_shared/record.ts';
 
 declare const EdgeRuntime: {waitUntil(promise: Promise<unknown>): void};
@@ -77,39 +82,76 @@ Deno.serve(async req => {
     return errorResponse('download_failed', 500);
   }
 
-  let params;
+  // A long PDF is read in parts at the same time (modules/lab-report/parts.ts); a short one or a photo in one call.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let requests: {params: ReturnType<typeof buildRequestParams>; pages: number[] | null}[];
   try {
-    params = buildRequestParams({mimeType: document.mime_type, base64: encodeBase64(new Uint8Array(await file.arrayBuffer()))}, schema);
+    const parts = document.mime_type === 'application/pdf' ? await pdfParts(bytes) : null;
+    requests = parts && parts.length > 1
+      ? parts.map(part => ({params: buildRequestParams({mimeType: 'application/pdf', base64: part.base64}, schema,
+        partPrompt(part.pages, part.pageCount)), pages: part.pages}))
+      : [{params: buildRequestParams({mimeType: document.mime_type, base64: encodeBase64(bytes)}, schema), pages: null}];
   } catch {
     await fail('unsupported_file_type');
     return errorResponse('unsupported_file_type', 422);
   }
 
   const anthropic = anthropicClient({retries: 0, timeout: CALL_TIMEOUT_MS});
+  const read = async (params: ReturnType<typeof buildRequestParams>, signal: AbortSignal): Promise<Reading> => {
+    try {
+      const message = await anthropic.messages.stream(params as Anthropic.Messages.MessageStreamParams, {signal}).finalMessage();
+      return readResult({type: 'succeeded', message} as BatchResult, schema);
+    } catch (caught) {
+      if (caught instanceof Anthropic.APIUserAbortError || caught instanceof Anthropic.APIConnectionTimeoutError) {
+        return {ok: false, outcome: {status: 'failed', reason: 'timeout', model: MODEL, usage: null}};
+      }
+      if (caught instanceof Anthropic.APIError) {
+        return {ok: false, outcome: interpretResult({type: 'errored', error: caught.error as {error?: {type?: string; message?: string}}}, schema)};
+      }
+      return {ok: false, outcome: {status: 'failed', reason: 'provider_error', model: null, usage: null}};
+    }
+  };
   const run = async () => {
     const started = Date.now();
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), CALL_TIMEOUT_MS);
     let outcome: Outcome;
     try {
-      const message = await anthropic.messages.stream(params as Anthropic.Messages.MessageStreamParams,
-        {signal: abort.signal}).finalMessage();
-      outcome = interpretResult({type: 'succeeded', message} as BatchResult, schema);
-    } catch (caught) {
-      if (caught instanceof Anthropic.APIUserAbortError || caught instanceof Anthropic.APIConnectionTimeoutError) {
-        outcome = {status: 'failed', reason: 'timeout', model: MODEL, usage: null};
-      } else if (caught instanceof Anthropic.APIError) {
-        outcome = interpretResult({type: 'errored', error: caught.error as {error?: {type?: string; message?: string}}}, schema);
-      } else {
-        outcome = {status: 'failed', reason: 'provider_error', model: null, usage: null};
+      const readings = await Promise.all(requests.map(request => read(request.params, abort.signal)));
+      const usages = readings.map(reading => reading.ok ? reading.usage : reading.outcome.usage);
+      const usage = usages.some(Boolean) ? {
+        input_tokens: usages.reduce((total, item) => total + (item?.input_tokens ?? 0), 0),
+        output_tokens: usages.reduce((total, item) => total + (item?.output_tokens ?? 0), 0),
+      } : null;
+      // Any part that fails fails the analysis: a reading with missing pages is never shown as complete.
+      const failedIndex = readings.findIndex(reading => !reading.ok);
+      const failedPart = readings[failedIndex];
+      if (failedPart && !failedPart.ok) {
+        const pages = requests[failedIndex].pages;
+        const where = pages ? `parte ${failedIndex + 1} de ${requests.length} (páginas ${pages[0]}-${pages.at(-1)})` : null;
+        const detail = [where, failedPart.outcome.status === 'failed' ? failedPart.outcome.detail : null].filter(Boolean).join(': ');
+        outcome = {...failedPart.outcome, usage, ...(detail ? {detail} : {})};
+      }
+      else {
+        const ok = readings.filter(reading => reading.ok);
+        const extraction = requests.length > 1
+          ? mergeParts(ok.map((reading, index) => ({extraction: reading.extraction, pages: requests[index].pages!})))
+          : ok[0].extraction;
+        outcome = finishOutcome(extraction, ok[0].model, usage);
       }
     } finally {
       clearTimeout(timer);
     }
-    await recordOutcome(service, analysis.id, outcome, {mode: 'direct', ms: Date.now() - started});
+    const recorded = await recordOutcome(service, analysis.id, outcome,
+      {mode: 'direct', parts: requests.length, ms: Date.now() - started});
+    // Double check in its own invocation (verify-analysis), as the caller: the reading is already visible meanwhile.
+    if (recorded && outcome.status === 'ready') {
+      const {error} = await auth.client.functions.invoke('verify-analysis', {body: {analysis_id: analysis.id}});
+      if (error) log('verification_start_error', {analysis_id: analysis.id});
+    }
   };
 
   EdgeRuntime.waitUntil(run());
-  log('analysis_submitted', {analysis_id: analysis.id, mode: 'direct', model: MODEL});
+  log('analysis_submitted', {analysis_id: analysis.id, mode: 'direct', parts: requests.length, model: MODEL});
   return json({analysis_id: analysis.id, status: 'processing'}, 202);
 });
