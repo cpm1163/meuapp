@@ -1,10 +1,20 @@
 import { classifyParameter, generateFindings, normalizeText, type Extraction, type Finding, type ParameterStatus, type Sex } from '../../../modules/lab-report/findings';
 import { splitUnsourced, textBlocks, UNSOURCED_NOTE, UNSOURCED_TITLE, WRITING_DISCLAIMER } from '../../../modules/clinical-considerations/writing';
-import { DISCLAIMER, findingDetails, findingTitle, findingTone, groupFindings, reasonText, TONE_COLORS, TONE_NOTE } from './findings-text';
+import { DISCLAIMER, findingDetails, findingTitle, findingTone, groupFindings, reasonText, TONE_COLORS, TONE_NOTE, valueWithUnit } from './findings-text';
 
 // Full report of one analysis (decided 16/10/2026, docs/exam-comparison.md): every parameter by exam, classified in
 // code against the printed reference (level A). It never carries the patient's name or CPF, only age and sex,
 // because the PDF leaves the app (WhatsApp); the extraction itself never transcribes the patient's identification.
+
+type Parameter = Extraction['exams'][number]['parameters'][number];
+
+// The sum of the differential ("Leucócitos 100 %", reference "100 %") is sometimes transcribed as a parameter:
+// it says nothing about the patient, so it is left out of the tables.
+function isDifferentialTotal(parameter: Parameter): boolean {
+  const digits = (text: string) => text.replace(/[\s%]/g, '').replace(',', '.');
+  return `${parameter.value_text}${parameter.unit}`.includes('%') && ['100', '100.0'].includes(digits(parameter.value_text))
+    && ['100', '100.0'].includes(digits(parameter.reference.text));
+}
 
 export type Demographics = { sex: Sex; birthDate: string | null };
 export type ReportRow = {
@@ -114,12 +124,12 @@ export function buildReport(extraction: Extraction, storedFindings: Finding[], r
       name: exam.exam_name,
       detail: [exam.material, exam.method].filter(Boolean).join(' · '),
       notes: exam.lab_notes.filter(Boolean),
-      rows: exam.parameters.map(parameter => {
+      rows: exam.parameters.filter(parameter => !isDifferentialTotal(parameter)).map(parameter => {
         const { status, row } = classifyParameter(parameter, sex, age);
         const previous = parameter.history[0];
         return {
           name: parameter.name,
-          value: `${parameter.value_text}${parameter.unit ? ` ${parameter.unit}` : ''}`,
+          value: valueWithUnit(parameter.value_text, parameter.unit || null),
           reference: parameter.reference.text,
           status, statusText: STATUS_TEXT[status], row,
           labFlag: parameter.lab_flag === 'none' ? null : FLAG_TEXT[parameter.lab_flag] ?? null,

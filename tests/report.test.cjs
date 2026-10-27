@@ -35,6 +35,22 @@ test('every parameter of every exam is in the report, with a status text and col
   assert.ok(built.exams.flatMap(exam => exam.rows).some(row => row.status !== 'within'), 'fixture has values outside the reference');
 });
 
+test('a unit already in the transcribed value is not repeated, and the differential total is left out', () => {
+  const extraction = fixture();
+  const parameters = extraction.exams[0].parameters;
+  parameters[0] = {...parameters[0], value_text: '4,80 milhões/mm³'};
+  parameters.push({...parameters[0], name: 'Leucócitos', value_kind: 'numeric', value_number: 100, value_text: '100 %', unit: '%',
+    reference: {...parameters[0].reference, kind: 'none', text: '100 %', low: null, high: null}});
+  const rows = report.buildReport(extraction, generateFindings(extraction), null).exams[0].rows;
+  assert.equal(rows[0].value, '4,80 milhões/mm³');
+  assert.equal(rows.length, parameters.length - 1);
+  assert.ok(!rows.some(row => row.reference === '100 %'));
+  const {valueWithUnit} = load('src/features/analyses/findings-text.ts');
+  assert.equal(valueWithUnit('2,13 mg/g de Creatinina', 'mg/g de Creatinina'), '2,13 mg/g de Creatinina');
+  assert.equal(valueWithUnit('8', 'µL'), '8 µL');
+  assert.equal(valueWithUnit('Ausente', null), 'Ausente');
+});
+
 test('lab notes stay in their exam and leave the highlights; other findings are kept', () => {
   const extraction = fixture();
   const findings = generateFindings(extraction);

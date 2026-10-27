@@ -1,16 +1,22 @@
 // Starts the lab-report analysis of a document (docs/compliance.md, Função de análise).
 // 1. The database authorizes with the user's token (module, grant, terms, owner, daily limit) and reserves the document.
-// 2. The file is downloaded with the server credential and submitted as a one-request batch.
-// The function returns as soon as the batch exists; collect-analyses picks up the result.
+// 2. The file is downloaded with the server credential and sent in one direct, streamed call (decided on 27/10/2026:
+//    the batch queue took hours). The call runs as a background task, so the app gets 202 at once and polls the status.
+// 3. The answer is validated and recorded here; collect-analyses only finishes batches submitted before.
 
-import type Anthropic from '@anthropic-ai/sdk';
+import Anthropic from '@anthropic-ai/sdk';
 import {encodeBase64} from '@std/encoding/base64';
 import schema from '../../../modules/lab-report/extraction.schema.json' with {type: 'json'};
-import {buildRequestParams, MODEL, MODULE_VERSION} from '../../../modules/lab-report/request.ts';
+import {type BatchResult, buildRequestParams, interpretResult, MODEL, MODULE_VERSION, type Outcome} from '../../../modules/lab-report/request.ts';
 import {anthropicClient, authenticate, corsHeaders, errorResponse, json, log, serviceClient} from '../_shared/common.ts';
+import {recordOutcome} from '../_shared/record.ts';
+
+declare const EdgeRuntime: {waitUntil(promise: Promise<unknown>): void};
 
 const MODULE_ID = 'lab-report';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// The Free plan stops a function after 150 s of wall clock: abort before that, so the failure is still recorded.
+const CALL_TIMEOUT_MS = 125_000;
 
 // Refusals raised by start_document_analysis, by exception message.
 const START_ERRORS: Record<string, number> = {
@@ -79,30 +85,31 @@ Deno.serve(async req => {
     return errorResponse('unsupported_file_type', 422);
   }
 
-  let anthropic: Anthropic;
-  let batchId: string;
-  const started = Date.now();
-  try {
-    anthropic = anthropicClient({retries: 0});
-    const batch = await anthropic.messages.batches.create({
-      requests: [{custom_id: analysis.id, params: params as Anthropic.Messages.MessageCreateParamsNonStreaming}],
-    });
-    batchId = batch.id;
-  } catch (error) {
-    log('batch_create_error', {analysis_id: analysis.id, status: (error as {status?: number}).status ?? null});
-    await fail('provider_error');
-    return errorResponse('provider_error', 502);
-  }
+  const anthropic = anthropicClient({retries: 0, timeout: CALL_TIMEOUT_MS});
+  const run = async () => {
+    const started = Date.now();
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), CALL_TIMEOUT_MS);
+    let outcome: Outcome;
+    try {
+      const message = await anthropic.messages.stream(params as Anthropic.Messages.MessageStreamParams,
+        {signal: abort.signal}).finalMessage();
+      outcome = interpretResult({type: 'succeeded', message} as BatchResult, schema);
+    } catch (caught) {
+      if (caught instanceof Anthropic.APIUserAbortError || caught instanceof Anthropic.APIConnectionTimeoutError) {
+        outcome = {status: 'failed', reason: 'timeout', model: MODEL, usage: null};
+      } else if (caught instanceof Anthropic.APIError) {
+        outcome = interpretResult({type: 'errored', error: caught.error as {error?: {type?: string; message?: string}}}, schema);
+      } else {
+        outcome = {status: 'failed', reason: 'provider_error', model: null, usage: null};
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+    await recordOutcome(service, analysis.id, outcome, {mode: 'direct', ms: Date.now() - started});
+  };
 
-  const {error: recordError} = await service.rpc('set_analysis_batch', {analysis_id: analysis.id, batch_id: batchId, model: MODEL});
-  if (recordError) {
-    // Without the batch id the result could never be collected: cancel it so it is not processed for nothing.
-    log('batch_record_error', {analysis_id: analysis.id, batch_id: batchId, code: recordError.code});
-    await anthropic.messages.batches.cancel(batchId).catch(() => log('batch_cancel_error', {batch_id: batchId}));
-    await fail('batch_not_recorded');
-    return errorResponse('batch_not_recorded', 500);
-  }
-
-  log('analysis_submitted', {analysis_id: analysis.id, batch_id: batchId, model: MODEL, ms: Date.now() - started});
+  EdgeRuntime.waitUntil(run());
+  log('analysis_submitted', {analysis_id: analysis.id, mode: 'direct', model: MODEL});
   return json({analysis_id: analysis.id, status: 'processing'}, 202);
 });

@@ -74,11 +74,19 @@ export function reasonText(finding: Finding): string {
   return `${ARROWS[findingTone(finding)] ?? ''}${text}`;
 }
 
+const squash = (text: string) => text.replace(/\s+/g, '').toLowerCase();
+
+/** Value with its unit, without repeating a unit the transcription already put in the value ("261 mg/dL"). */
+export function valueWithUnit(value: string, unit: string | null): string {
+  if (!unit || squash(value).endsWith(squash(unit))) return value;
+  return `${value} ${unit}`;
+}
+
 /** Title line of a finding: parameter (or exam) and value with unit. */
 export function findingTitle(finding: Finding): string {
   const name = finding.parameter_name ?? finding.exam_name ?? '';
   if (finding.kind === 'lab_note' || !finding.value_text) return name;
-  return `${name}: ${finding.value_text}${finding.unit ? ` ${finding.unit}` : ''}`;
+  return `${name}: ${valueWithUnit(finding.value_text, finding.unit)}`;
 }
 
 /** Context lines: reference, previous value, exam and page. */
