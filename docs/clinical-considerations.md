@@ -171,6 +171,25 @@ Feito em código:
 
 Falta, e só com confirmação do usuário: publicar as duas migrações e as funções `analyze-document`, `collect-analyses` e `write-considerations` (sem custo no plano gratuito do Supabase) e o teste real (1 reanálise da amostra 1 + 1 chamada das considerações, pagos com o saldo pré-pago da API).
 
+### Primeiro teste real (27/10/2026)
+
+Amostra 1, extração já com Haiku 5.5 (chamada direta, ver [compliance.md](compliance.md)). Considerações no Opus 5.5: **15 s**, 3 mil tokens de entrada e 1,5 mil de saída (cerca de US$ 0,04). A conferência descartou 1 frase.
+
+- **Funcionou:** 4 temas com fonte (metabolismo glicêmico, função renal, perfil lipídico, hemograma), sem números além das categorias G2 e A1, tom equilibrado; bloco sem fonte só para LDL e não-HDL (dependem da categoria de risco).
+- **Cobertura:** dos 12 pontos de atenção (10 fora da referência e 2 de conferência em tabela), 11 aparecem. **Falta a insulina** (valor isolado): só aparece indiretamente pelo HOMA-IR. Hipótese: era a frase descartada; o texto descartado não é guardado, então não dá para confirmar.
+
+**Pendências a corrigir:**
+
+1. **Todo ponto de atenção deve aparecer** nas considerações, com ficha ou no bloco sem fonte. Proposta: o código confere a cobertura depois da escrita e, se faltar um parâmetro, o lista ao médico ("Sem consideração: Insulina").
+2. **Guardar o motivo do descarte** (não o texto inteiro, se não for necessário) para diagnosticar casos como o da insulina.
+3. **Redação:** "Pode ser útil avaliar as alterações dos leucócitos pela contagem absoluta…" soa como conduta; "…acima da referência **indicam** aumento das frações aterogênicas" (bloco sem fonte) é afirmativo demais ("correspondem a" seria mais neutro). Avaliar ajuste nas fichas ou nas regras de conferência.
+4. **Extensão:** o hemograma ficou com 8 frases, contra 2 a 5 nos outros temas.
+5. **Origem dos dados:** a extração veio do Haiku; conferir contra os gabaritos da amostra 1 (`tests/fixtures/private/`) antes de avaliar a escolha das fichas.
+6. **Unidade repetida (extração do Haiku):** o PDF mostra "261 mg/dL mg/dL", "5,7 % %", "8 µL µL", "2,13 mg/g de Creatinina mg/g de Creatinina": o valor transcrito já traz a unidade. **Corrigido em 27/10/2026** no app e no PDF: `valueWithUnit` ([findings-text.ts](../src/features/analyses/findings-text.ts)) não repete a unidade quando o valor já termina com ela; vale também para análises antigas.
+7. **Linha espúria no hemograma:** "Leucócitos 100 % %, sem referência" (o total do diferencial lido como parâmetro). **Corrigido em 27/10/2026:** valor e referência iguais a 100 % saem das tabelas (`isDifferentialTotal` em [report.ts](../src/features/analyses/report.ts)).
+
+**PDF (27/10/2026): aprovado no teste.** Traz só o texto aprovado, "Revisado pelo médico em 27/10/2026", as referências numeradas batendo com o texto e o bloco "Análise da IA, sem fonte verificada" separado. Aprovação sem edição também funcionou.
+
 ## Tipo 1 — agrupamento por tema (23/10/2026)
 
 Decidido pelo usuário em 23/10/2026, depois de comparar com o relatório de exemplo: **a IA só agrupa, o código escreve**, e o agrupamento vem **automaticamente** com as considerações, sem botão.

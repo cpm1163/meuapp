@@ -69,11 +69,11 @@ export async function authenticate(req: Request): Promise<{user: User; client: S
 }
 
 /**
- * Anthropic client. Creating a batch is never retried automatically: a retry after a lost response
- * could submit (and bill) the same analysis twice (docs/compliance.md, Travas de custo).
+ * Anthropic client. Starting an analysis is never retried automatically: a retry after a lost response
+ * could run (and bill) the same analysis twice (docs/compliance.md, Travas de custo).
  */
-export function anthropicClient({retries}: {retries: 0 | 2}): Anthropic {
+export function anthropicClient({retries, timeout = 60_000}: {retries: 0 | 2; timeout?: number}): Anthropic {
   const key = Deno.env.get('ANTHROPIC_API_KEY');
   if (!key) throw new Error('missing ANTHROPIC_API_KEY');
-  return new Anthropic({apiKey: key, maxRetries: retries, timeout: 60_000});
+  return new Anthropic({apiKey: key, maxRetries: retries, timeout});
 }

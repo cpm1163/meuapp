@@ -1,4 +1,4 @@
-// Builds the AI request for a lab report and turns the batch result into an analysis outcome.
+// Builds the AI request for a lab report and turns the AI result (direct call or batch) into an analysis outcome.
 // No SDK types: self-contained so it runs unchanged in the Edge Function (Deno) and in the Node tests.
 // The AI only transcribes; findings are generated here, in code (docs/compliance.md).
 
@@ -6,10 +6,11 @@ import {INSTRUCTIONS, INSTRUCTIONS_VERSION} from './instructions.ts';
 import {failureReason, generateFindings, type Extraction, type Finding} from './findings.ts';
 import {validateSchema, type JsonSchema} from './schema-check.ts';
 
-export const MODEL = 'claude-opus-5-5';
+// Haiku for speed and cost while testing (decided by the user on 27/10/2026: a fast result matters more than accuracy now).
+export const MODEL = 'claude-haiku-5-5';
 // Cost ceiling per analysis (docs/compliance.md, Travas de custo): room for a long report's JSON plus thinking.
 export const MAX_TOKENS = 64000;
-export const EFFORT = 'medium';
+export const EFFORT = 'low';
 export const MODULE_VERSION = INSTRUCTIONS_VERSION;
 
 export type SourceFile = {mimeType: string; base64: string};
@@ -37,7 +38,7 @@ export function extractJson(text: string): string {
   return start >= 0 && end > start ? text.slice(start, end + 1) : text;
 }
 
-/** Messages API params for one analysis, used as a batch request. */
+/** Messages API params for one analysis (direct streaming call). */
 export function buildRequestParams(file: SourceFile, schema: JsonSchema) {
   let source;
   if (file.mimeType === 'application/pdf') {

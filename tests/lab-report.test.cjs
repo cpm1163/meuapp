@@ -277,14 +277,14 @@ test('unit normalization accepts common printed forms', () => {
 });
 
 // Request and result handling (the batch call itself is not exercised here: no network, no cost).
-const succeeded = (text, extra = {}) => ({type: 'succeeded', message: {model: 'claude-opus-5-5', stop_reason: 'end_turn',
+const succeeded = (text, extra = {}) => ({type: 'succeeded', message: {model: 'claude-haiku-5-5', stop_reason: 'end_turn',
   content: [{type: 'text', text}], usage: {input_tokens: 100, output_tokens: 50}, ...extra}});
 
 test('request: PDF and photos are sent with the instructions, schema, model and cost ceiling', () => {
   const pdf = request.buildRequestParams({mimeType: 'application/pdf', base64: 'QUJD'}, schema);
-  assert.equal(pdf.model, 'claude-opus-5-5');
+  assert.equal(pdf.model, 'claude-haiku-5-5');
   assert.equal(pdf.max_tokens, 64000);
-  assert.deepEqual(pdf.output_config, {effort: 'medium'}, 'no structured outputs: the API rejects this schema as too large');
+  assert.deepEqual(pdf.output_config, {effort: 'low'}, 'no structured outputs: the API rejects this schema as too large');
   assert.ok(pdf.system.startsWith(load('modules/lab-report/instructions.ts').INSTRUCTIONS));
   const sent = JSON.parse(pdf.system.slice(pdf.system.lastIndexOf('\n') + 1));
   assert.ok(!('$schema' in sent) && !('title' in sent));
@@ -305,7 +305,7 @@ test('result: JSON wrapped in a code fence or text is still read; the schema sti
 test('result: a valid extraction becomes a ready analysis with findings generated in code', () => {
   const outcome = request.interpretResult(succeeded(JSON.stringify(fixture())), schema);
   assert.equal(outcome.status, 'ready');
-  assert.equal(outcome.model, 'claude-opus-5-5');
+  assert.equal(outcome.model, 'claude-haiku-5-5');
   assert.deepEqual(outcome.findings, generateFindings(fixture()));
   assert.deepEqual(outcome.usage, {input_tokens: 100, output_tokens: 50});
 });

@@ -317,6 +317,23 @@ Somente o proprietário com o módulo liberado pede análise, porque isso envolv
 
 **Implementada em 08/10/2026, em lote** (Message Batches API da Anthropic). Uma Edge Function para em **150 s** no plano gratuito do Supabase, e a resposta de um laudo longo leva minutos. Por isso a análise foi dividida em duas funções (decidido pelo usuário em 08/10/2026). O lote também custa **50% menos**. Em troca, o resultado não sai na hora: a maioria dos lotes termina em até 1 hora, e o máximo é 24 horas.
 
+**Trocado em 27/10/2026: chamada direta com Haiku 5.5.** No teste real da amostra 1 o lote ficou mais de 3 horas na fila da Anthropic, e o usuário decidiu que o resultado rápido importa mais que a precisão nesta fase. O lote foi cancelado no Console (workspace `exames-ia`), sem custo.
+
+- `analyze-document` faz **uma chamada direta, com streaming**, em segundo plano (`EdgeRuntime.waitUntil`): o app recebe 202 na hora e consulta o estado a cada 10 s. A função grava o resultado com as mesmas conferências (`interpretResult`, `_shared/record.ts`).
+- Modelo `claude-haiku-5-5`, esforço `low`. Amostra 1 no Opus: 74 mil tokens de entrada e 29 mil de saída; no Haiku, cerca de US$ 0,02 por laudo (US$ 0,10 / 0,50 por milhão até 100 mil tokens de entrada).
+- **Limite de 150 s** do plano gratuito (wall clock, que inclui tarefas em segundo plano): a chamada é abortada em 125 s e a análise falha como `timeout`. Se laudos longos passarem disso, o próximo passo é dividir o laudo em partes lidas em paralelo.
+- `collect-analyses` continua só para lotes enviados antes da troca.
+
+**Ideia a avaliar (27/10/2026): chave de API própria do médico.** O usuário acha a opção interessante para a comercialização: o médico paga a IA, e o app não tem custo de IA por análise.
+
+- **Assinatura de chat não serve** (ChatGPT Plus, Claude Pro, Gemini Advanced): vale só no chat do provedor, sem acesso para outros apps, e usá-la por fora violaria os termos de uso.
+- **Chave de API serve:** o médico cria uma conta de API (ex.: Console da Anthropic) e informa a chave no app. As análises dele são cobradas na conta dele. Lote, extração e considerações continuam iguais.
+- **Segurança:** a chave fica criptografada no servidor (Supabase Vault), nunca no celular, e só as funções a usam. Vazamento significaria gasto na conta do médico.
+- **Mesmo provedor:** instruções e conferências foram ajustadas para o Claude. Outros provedores exigiriam adaptar e testar tudo de novo.
+- **Dados de saúde:** os laudos passam pelos termos da conta do médico; o app precisa avisar que o contrato com o provedor é responsabilidade dele.
+- **Erros novos:** chave inválida, saldo esgotado, limite de uso, com mensagens claras.
+- **Modelo comercial:** a chave da conta do app continua como padrão; a do médico, como opção. Combinar com o preço do app (ex.: plano mais barato para quem traz a própria chave).
+
 **`analyze-document`** (`supabase/functions/analyze-document/`), chamada pelo app com o identificador do documento:
 
 1. Valida a sessão do usuário no servidor de autenticação.

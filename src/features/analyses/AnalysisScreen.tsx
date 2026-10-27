@@ -18,8 +18,8 @@ import { CONSIDERATIONS_MODULE } from './considerations';
 type Props = { documentId: string; accessToken: string };
 
 const curatedMeanings = curatedJson as unknown as CuratedMeanings;
-// A batch usually ends within the hour. Checking costs no AI tokens (it only reads the batch status).
-const POLL_MS = 30_000;
+// A direct analysis ends in a minute or two. Checking costs no AI tokens (it only reads the status).
+const POLL_MS = 10_000;
 const HISTORY_STATUSES: Record<Analysis['status'], string> = { processing: 'em andamento', ready: 'pronta', failed: 'falhou' };
 const formatDate = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
