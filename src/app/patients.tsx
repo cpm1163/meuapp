@@ -1,9 +1,12 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/providers/auth-provider';
 import { PatientsScreen } from '@/features/patients/PatientsScreen';
 
 export default function Patients() {
   const { session } = useAuth();
+  const { search } = useLocalSearchParams<{ search?: string }>();
   if (!session) return null;
   // A different account must never inherit the previous account's list.
-  return <PatientsScreen key={session.user.id} accessToken={session.access_token} />;
+  return <PatientsScreen key={session.user.id} accessToken={session.access_token}
+    initialSearch={typeof search === 'string' ? search : ''} />;
 }

@@ -6,9 +6,12 @@ import { DocumentsScreen } from '@/features/documents/DocumentsScreen';
 import { styles as ui } from '@/features/modules/ui';
 import { PatientHeader } from '@/features/patients/PatientHeader';
 import { PatientNotes } from '@/features/patients/PatientNotes';
+import { Prescriptions } from '@/features/prescriptions/Prescriptions';
 
-type Tab = 'notes' | 'documents';
-const tabs: { value: Tab; label: string }[] = [{ value: 'notes', label: 'Ficha' }, { value: 'documents', label: 'Documentos' }];
+type Tab = 'notes' | 'documents' | 'prescriptions';
+const tabs: { value: Tab; label: string }[] = [
+  { value: 'notes', label: 'Ficha' }, { value: 'documents', label: 'Documentos' }, { value: 'prescriptions', label: 'Receitas' },
+];
 
 export default function Patient() {
   const { session } = useAuth();
@@ -27,7 +30,7 @@ export default function Patient() {
   </>;
   // A different account or patient must never inherit the previous list or modal state.
   const key = `${session.user.id}:${patientId}`;
-  return tab === 'notes'
-    ? <PatientNotes key={key} patientId={patientId} accessToken={session.access_token} header={header} />
-    : <DocumentsScreen key={key} userId={session.user.id} accessToken={session.access_token} patientId={patientId} header={header} />;
+  if (tab === 'notes') return <PatientNotes key={key} patientId={patientId} accessToken={session.access_token} header={header} />;
+  if (tab === 'prescriptions') return <Prescriptions key={key} patientId={patientId} accessToken={session.access_token} header={header} />;
+  return <DocumentsScreen key={key} userId={session.user.id} accessToken={session.access_token} patientId={patientId} header={header} />;
 }

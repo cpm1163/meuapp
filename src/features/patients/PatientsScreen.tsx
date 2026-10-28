@@ -6,13 +6,14 @@ import { Action, styles as ui } from '@/features/modules/ui';
 import { PatientForm } from './PatientForm';
 import { createPatientService, formatBirthDate, formatCpf, PATIENT_PAGE_SIZE, patientError, type PatientListItem } from './service';
 
-type Props = { accessToken: string };
+// initialSearch: the term typed in the home search, applied when the screen opens.
+type Props = { accessToken: string; initialSearch?: string };
 
-export function PatientsScreen({ accessToken }: Props) {
+export function PatientsScreen({ accessToken, initialSearch = '' }: Props) {
   const service = useMemo(() => createPatientService(accessToken), [accessToken]);
   const [patients, setPatients] = useState<PatientListItem[]>([]);
-  const [search, setSearch] = useState('');
-  const [applied, setApplied] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const [applied, setApplied] = useState(initialSearch);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +33,7 @@ export function PatientsScreen({ accessToken }: Props) {
     finally { if (version === request.current) setLoading(false); }
   }, [service]);
 
-  const appliedRef = useRef('');
+  const appliedRef = useRef(initialSearch);
   // Reloads when returning from a patient, whose documents or data may have changed.
   useFocusEffect(useCallback(() => {
     void load(appliedRef.current);
