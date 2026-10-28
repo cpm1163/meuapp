@@ -121,6 +121,7 @@ export function patientError(error: unknown): string {
   if (message === 'invalid_birth_date') return 'Informe uma data de nascimento válida.';
   if (message === 'patient_has_documents') return 'Este paciente ainda tem documentos. Exclua ou desvincule os documentos antes.';
   if (message === 'patient_has_notes') return 'Este paciente tem anotações na ficha e não pode ser excluído.';
+  if (message === 'patient_has_prescriptions') return 'Este paciente tem receitas e não pode ser excluído.';
   if (message === 'note_not_available') return 'Anotação indisponível. Atualize a ficha.';
   if (message === 'module_not_available') return 'A gestão por paciente não está liberada para você. Veja em “Meus módulos”.';
   if (code === '23505') return 'Você já cadastrou um paciente com este CPF.';

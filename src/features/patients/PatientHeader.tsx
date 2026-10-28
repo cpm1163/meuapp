@@ -41,7 +41,7 @@ export function PatientHeader({ patientId, accessToken }: { patientId: string; a
         <Action title={confirmDelete ? 'Confirmar exclusão do paciente' : 'Excluir paciente'} danger onPress={() => void remove()} disabled={busy} />
         {confirmDelete && <Action title="Não excluir" onPress={() => setConfirmDelete(false)} disabled={busy} />}
       </View>
-      {confirmDelete && <Text style={ui.danger}>Só é possível excluir um paciente sem documentos e sem anotações na ficha. Esta ação não pode ser desfeita.</Text>}
+      {confirmDelete && <Text style={ui.danger}>Só é possível excluir um paciente sem documentos, sem anotações na ficha e sem receitas. Esta ação não pode ser desfeita.</Text>}
     </>}
     {!!error && <Text accessibilityRole="alert" style={ui.danger}>{error}</Text>}
     {editing && patient && <PatientForm patient={patient} onClose={() => setEditing(false)} onSave={async input => {

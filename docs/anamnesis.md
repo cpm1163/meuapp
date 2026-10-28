@@ -13,7 +13,7 @@ Proposta iniciada em 26/10/2026, em conversa com o usuário. **Implementada em 2
 | 5 — Uso pela análise | Por ora, nenhum: as anotações são texto livre (ver "Uso pelas considerações clínicas"). |
 | 6 — Modelo de dados, interface e testes | Feito em 27/10/2026 (ver "Implementação"). |
 
-Documentos relacionados: [grants.md](grants.md) (FASE 01, documentos e compartilhamento), [profiles.md](profiles.md) (FASE 02, módulos) e [clinical-considerations.md](clinical-considerations.md) (considerações clínicas, que usariam a anamnese).
+Documentos relacionados: [grants.md](grants.md) (FASE 01, documentos e compartilhamento), [profiles.md](profiles.md) (FASE 02, módulos), [clinical-considerations.md](clinical-considerations.md) (considerações clínicas, que usariam a anamnese) e [prescriptions.md](prescriptions.md) (receitas, alergias e medicamentos em uso).
 
 ## O que é
 

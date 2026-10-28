@@ -14,6 +14,8 @@ Até aqui o app foi validado no **Expo Go**, que só inclui os módulos nativos 
 
 Referências (SDK 57): [introdução](https://docs.expo.dev/develop/development-builds/introduction/), [eas.json](https://docs.expo.dev/build/eas-json/), [distribuição interna](https://docs.expo.dev/build/internal-distribution/), [variáveis de ambiente no EAS](https://docs.expo.dev/eas/environment-variables/).
 
+**Segunda build preview Android (27/10/2026):** com a FASE 05 parte 06 (anamnese, leitura em partes com conferência, abas da análise), para o usuário apresentar ao médico parceiro no próprio Android (o médico usa iPhone; iOS fica para depois). Build `9a57512a-20e4-444a-a2cb-f7ba20f5d4b4`, `expo-doctor` 21/21; ficou mais de 30 minutos na fila gratuita do EAS antes de terminar.
+
 ## Como vai funcionar
 
 - A build é feita **na nuvem pelo EAS** (`npx eas-cli@latest build`). Não é preciso Android Studio nem Xcode. No iOS, isso dispensa um Mac.
