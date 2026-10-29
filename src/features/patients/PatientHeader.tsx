@@ -7,8 +7,9 @@ import { createPatientService, formatBirthDate, formatCpf, patientError, type Pa
 
 const sexLabels = { female: 'Feminino', male: 'Masculino' } as const;
 
-// Patient data at the top of the patient's screen (Ficha and Documentos tabs), with correction and deletion.
-export function PatientHeader({ patientId, accessToken }: { patientId: string; accessToken: string }) {
+// Patient name and summary at the top of every tab of the patient's screen.
+// With `details` (Dados tab), it also lists each field and offers correction and deletion.
+export function PatientHeader({ patientId, accessToken, details = false }: { patientId: string; accessToken: string; details?: boolean }) {
   const service = useMemo(() => createPatientService(accessToken), [accessToken]);
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,12 +37,18 @@ export function PatientHeader({ patientId, accessToken }: { patientId: string; a
       <Text style={ui.title}>{patient.display_name}</Text>
       <Text style={ui.subtitle}>{[formatCpf(patient.cpf) && `CPF ${formatCpf(patient.cpf)}`, patient.birth_date && `Nasc. ${formatBirthDate(patient.birth_date)}`,
         patient.sex && sexLabels[patient.sex]].filter(Boolean).join(' · ') || 'Sem CPF, nascimento ou sexo informados.'}</Text>
-      <View style={ui.actions}>
-        <Action title="Corrigir dados" onPress={() => setEditing(true)} disabled={busy} />
-        <Action title={confirmDelete ? 'Confirmar exclusão do paciente' : 'Excluir paciente'} danger onPress={() => void remove()} disabled={busy} />
-        {confirmDelete && <Action title="Não excluir" onPress={() => setConfirmDelete(false)} disabled={busy} />}
-      </View>
-      {confirmDelete && <Text style={ui.danger}>Só é possível excluir um paciente sem documentos, sem anotações na ficha e sem receitas. Esta ação não pode ser desfeita.</Text>}
+      {details && <View style={ui.card}>
+        <Field label="Nome" value={patient.display_name} />
+        <Field label="CPF" value={formatCpf(patient.cpf) || 'Não informado'} />
+        <Field label="Nascimento" value={patient.birth_date ? formatBirthDate(patient.birth_date) : 'Não informada'} />
+        <Field label="Sexo" value={patient.sex ? sexLabels[patient.sex] : 'Não informado'} />
+        <View style={ui.actions}>
+          <Action title="Corrigir dados" onPress={() => setEditing(true)} disabled={busy} />
+          <Action title={confirmDelete ? 'Confirmar exclusão do paciente' : 'Excluir paciente'} danger onPress={() => void remove()} disabled={busy} />
+          {confirmDelete && <Action title="Não excluir" onPress={() => setConfirmDelete(false)} disabled={busy} />}
+        </View>
+        {confirmDelete && <Text style={ui.danger}>Só é possível excluir um paciente sem documentos, sem anotações na anamnese e sem receitas. Esta ação não pode ser desfeita.</Text>}
+      </View>}
     </>}
     {!!error && <Text accessibilityRole="alert" style={ui.danger}>{error}</Text>}
     {editing && patient && <PatientForm patient={patient} onClose={() => setEditing(false)} onSave={async input => {
@@ -49,4 +56,8 @@ export function PatientHeader({ patientId, accessToken }: { patientId: string; a
       await load();
     }} />}
   </View>;
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return <View><Text style={ui.hint}>{label}</Text><Text style={ui.subtitle}>{value}</Text></View>;
 }

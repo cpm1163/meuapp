@@ -43,6 +43,15 @@ export function createDocumentService(accessToken: string) {
       if (error) throw error;
       return data as DocumentRecord[];
     },
+    // Home inbox line: how many documents a scope holds, without loading them.
+    async count(userId: string, scope: 'mine' | 'unassigned' | 'shared') {
+      let query = client.from('documents').select('id', { count: 'exact', head: true });
+      query = scope === 'shared' ? query.neq('owner_id', userId) : query.eq('owner_id', userId);
+      if (scope === 'unassigned') query = query.is('patient_id', null);
+      const { count, error } = await query;
+      if (error) throw error;
+      return count ?? 0;
+    },
     async get(id: string) {
       const { data, error } = await client.from('documents').select(DOCUMENT_SELECT).eq('id', id)
         .order('created_at', { referencedTable: 'analyses', ascending: false }).limit(1, { referencedTable: 'analyses' }).maybeSingle();

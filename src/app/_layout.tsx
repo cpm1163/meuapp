@@ -19,6 +19,7 @@ function Routes() {
         <Stack.Screen name="modules" />
         <Stack.Screen name="admin" />
         <Stack.Screen name="analysis" />
+        <Stack.Screen name="alerts" />
       </Stack.Protected>
       <Stack.Screen name="auth/callback" />
     </Stack>
