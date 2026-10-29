@@ -64,7 +64,7 @@ export function PatientsScreen({ accessToken, initialSearch = '' }: Props) {
   </View>;
 
   return <SafeAreaView style={ui.screen}>
-    <FlatList data={patients} keyExtractor={item => item.id} contentContainerStyle={ui.content} ListHeaderComponent={header}
+    <FlatList data={patients} keyboardShouldPersistTaps="handled" keyExtractor={item => item.id} contentContainerStyle={ui.content} ListHeaderComponent={header}
       ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Carregando pacientes" /> : <Text style={ui.empty}>{applied ? 'Nenhum paciente encontrado.' : 'Nenhum paciente cadastrado.'}</Text>}
       ListFooterComponent={patients.length > 0 ? <View>{loading && <ActivityIndicator />}{hasMore && <Action title="Carregar mais" disabled={loading} onPress={() => void load(applied, patients.length)} />}</View> : null}
       renderItem={({ item }) => <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/patient', params: { patientId: item.id } })}

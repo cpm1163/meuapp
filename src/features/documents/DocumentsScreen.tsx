@@ -8,11 +8,13 @@ import { pickDocument } from './picker';
 import { PhotoCapture } from './PhotoCapture';
 import { photosToPdf, type Photo } from './photos-pdf';
 
-// With patientId, the screen lists and uploads that patient's documents and `header` replaces the title.
+// With patientId, the screen is the patient's Exames tab and `header` replaces the title.
+// Without it, the screen is the inbox: documents without a patient and documents shared with the doctor.
+// Doctors without the patients module add their documents here (scope 'mine').
 type Props = { userId: string; accessToken: string; initialScope?: DocumentScope; patientId?: string; header?: ReactNode };
 const scopeTitles: Record<Exclude<DocumentScope, 'patient'>, string> = { mine: 'Meus documentos', unassigned: 'Sem paciente', shared: 'Compartilhados comigo' };
 const emptyTexts: Record<DocumentScope, string> = {
-  mine: 'Você ainda não adicionou documentos.', unassigned: 'Nenhum documento sem paciente.',
+  mine: 'Você ainda não adicionou documentos.', unassigned: 'Tudo em ordem: nenhum documento sem paciente.',
   shared: 'Nenhum documento compartilhado com você.', patient: 'Nenhum documento deste paciente ainda.',
 };
 const statuses: Record<DocumentRecord['status'], string> = {
@@ -30,11 +32,20 @@ function Action({ title, onPress, disabled = false, danger = false }: { title: s
   </Pressable>;
 }
 
+function Primary({ title, onPress, disabled = false }: { title: string; onPress: () => void; disabled?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+    style={({ pressed }) => [styles.button, styles.primary, (pressed || disabled) && styles.dim]}>
+    <Text style={styles.primaryText}>{title}</Text>
+  </Pressable>;
+}
+
 export function DocumentsScreen({ userId, accessToken, initialScope, patientId, header: patientHeader }: Props) {
   const service = useMemo(() => createDocumentService(accessToken), [accessToken]);
   const patients = useMemo(() => createPatientService(accessToken), [accessToken]);
   const [scope, setScope] = useState<DocumentScope>(patientId ? 'patient' : initialScope ?? 'mine');
-  const [patientAccess, setPatientAccess] = useState({ granted: false, canUse: false });
+  // null until known, so the inbox does not flash the upload actions of doctors without the patients module.
+  const [patientAccessState, setPatientAccess] = useState<{ granted: boolean; canUse: boolean } | null>(null);
+  const patientAccess = patientAccessState ?? { granted: false, canUse: false };
   const [patientSearch, setPatientSearch] = useState('');
   const [patientResults, setPatientResults] = useState<PatientListItem[] | null>(null);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
@@ -49,6 +60,7 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
   const [name, setName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const mounted = useRef(true);
   const operation = useRef(false);
   const request = useRef(0);
@@ -93,8 +105,18 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
 
   // Display only: the database decides who may link documents to patients.
   useEffect(() => {
-    void patients.moduleAccess().then(access => { if (mounted.current) setPatientAccess(access); }).catch(() => {});
-  }, [patients]);
+    // With the module, the doctor's documents live in their patients; the inbox keeps only the unassigned ones.
+    void patients.moduleAccess().then(access => {
+      if (!mounted.current) return;
+      setPatientAccess(access);
+      if (!patientId && access.granted) setScope(current => current === 'mine' ? 'unassigned' : current);
+    }).catch(() => {});
+  }, [patients, patientId]);
+
+  async function pullToRefresh() {
+    setPulling(true); setError('');
+    try { await refresh(); } finally { if (mounted.current) setPulling(false); }
+  }
 
   async function run(task: () => Promise<void>) {
     if (operation.current) return;
@@ -173,16 +195,21 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
     });
   }
 
-  const tabs: Exclude<DocumentScope, 'patient'>[] = patientAccess.granted ? ['mine', 'unassigned', 'shared'] : ['mine', 'shared'];
+  const tabs: Exclude<DocumentScope, 'patient'>[] = patientAccess.granted ? ['unassigned', 'shared'] : ['mine', 'shared'];
+  const canUpload = !!patientId || (!!patientAccessState && !patientAccessState.granted);
+  const startCapture = () => { setError(''); setNotice(''); setCapturing(true); };
   const header = <View style={styles.header}>
     {patientHeader ?? <>
       <Action title="‹ Voltar" onPress={() => router.back()} />
-      <Text style={styles.title}>Seus documentos</Text>
-      <Text style={styles.subtitle}>Arquivos privados, compartilhados com quem você escolher.</Text>
+      <Text style={styles.title}>Caixa de entrada</Text>
+      <Text style={styles.subtitle}>{patientAccess.granted ? 'Documentos que ainda não estão em um paciente e documentos compartilhados com você.' : 'Seus documentos e os compartilhados com você.'}</Text>
     </>}
-    <Action title={busy ? 'Aguarde…' : '+ Adicionar documento'} onPress={upload} disabled={busy} />
-    <Text style={styles.hint}>PDF, PNG ou JPEG · até 10 MB</Text>
-    {Platform.OS !== 'web' && <Action title="+ Fotografar laudo" onPress={() => { setError(''); setNotice(''); setCapturing(true); }} disabled={busy} />}
+    {canUpload && <>
+      {Platform.OS !== 'web' && <Primary title="Fotografar documento" onPress={startCapture} disabled={busy} />}
+      {Platform.OS === 'web' ? <Primary title={busy ? 'Aguarde…' : 'Enviar arquivo'} onPress={upload} disabled={busy} />
+        : <Action title={busy ? 'Aguarde…' : 'Enviar arquivo'} onPress={upload} disabled={busy} />}
+      <Text style={styles.hint}>PDF, PNG ou JPEG · até 10 MB</Text>
+    </>}
     {!patientId && <View style={styles.tabs}>
       {tabs.map(value => <Pressable key={value} accessibilityRole="tab"
         accessibilityState={{ selected: scope === value, disabled: busy }} disabled={busy} onPress={() => { if (scope !== value) { setDocuments([]); setLoading(true); setError(''); setNotice(''); setScope(value); } }}
@@ -190,11 +217,11 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
     </View>}
     {!!error && <Text accessibilityRole="alert" style={styles.danger}>{error}</Text>}
     {!!notice && <Text accessibilityLiveRegion="polite" style={styles.subtitle}>{notice}</Text>}
-    <Action title="Atualizar lista" onPress={() => { setError(''); void refresh(); }} disabled={busy || loading} />
   </View>;
 
   return <SafeAreaView style={styles.screen}>
     <FlatList data={documents} keyExtractor={item => item.id} contentContainerStyle={styles.content}
+      refreshing={pulling} onRefresh={() => void pullToRefresh()}
       ListHeaderComponent={header}
       ListEmptyComponent={loading ? <ActivityIndicator accessibilityLabel="Carregando documentos" /> : <Text style={styles.empty}>{emptyTexts[scope]}</Text>}
       ListFooterComponent={documents.length > 0 ? <View>{loading && <ActivityIndicator />}{hasMore && <Action title="Carregar mais" disabled={loading || busy} onPress={() => void loadMore()} />}</View> : null}
@@ -212,6 +239,7 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
           })} />}
           {item.owner_id === userId && ['uploaded', 'processing', 'ready', 'failed'].includes(item.status) &&
             <Action title="Análise" disabled={busy} onPress={() => router.push({ pathname: '/analysis', params: { documentId: item.id } })} />}
+          {scope === 'unassigned' && patientAccess.canUse && <Primary title="Vincular a paciente" disabled={busy} onPress={() => manage(item)} />}
           {item.owner_id === userId && <Action title="Gerenciar" disabled={busy} onPress={() => manage(item)} />}
           {item.owner_id !== userId && <Text style={styles.hint}>Acesso de leitura</Text>}
         </View>
@@ -221,7 +249,7 @@ export function DocumentsScreen({ userId, accessToken, initialScope, patientId, 
 
     <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => { if (!busy) setSelected(null); }}>
       <View style={styles.backdrop}><View accessibilityViewIsModal style={styles.modal}>
-        <FlatList data={shares} keyExtractor={item => item.user_id}
+        <FlatList data={shares} keyExtractor={item => item.user_id} keyboardShouldPersistTaps="handled"
           ListHeaderComponent={<View style={styles.modalHeader}>
             <Text style={styles.documentName}>{selected?.name}</Text>
             {!!error && <Text accessibilityRole="alert" style={styles.danger}>{error}</Text>}
@@ -287,6 +315,8 @@ const styles = StyleSheet.create({
   activeTab: { backgroundColor: '#E5DFFB', borderWidth: 1, borderColor: '#7965C8' },
   button: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 10, backgroundColor: '#EEEBFA', justifyContent: 'center' },
   buttonText: { fontSize: 14, fontWeight: '600', color: '#55439F' },
+  primary: { backgroundColor: '#6251D5', alignItems: 'center' },
+  primaryText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   danger: { color: '#B42318', lineHeight: 21 },
   dim: { opacity: 0.5 },
   card: { backgroundColor: '#FFF', borderRadius: 16, padding: 18, gap: 10 },
