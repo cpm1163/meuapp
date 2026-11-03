@@ -4,12 +4,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Action, styles as ui } from '@/features/modules/ui';
 import { formatPrescriptionDate } from '@/features/prescriptions/service';
+import { isAllSelected, keepLoaded, selectionNotice, toggleAll, toggleOne, withoutIds } from './selection';
 import { alertError, alertTarget, alertTitles, createAlertService, type AlertRecord } from './service';
 
 // The doctor views, deletes one alert or selects several (or all) to delete. Deleting never touches the document.
 export function AlertsScreen({ accessToken }: { accessToken: string }) {
   const service = useMemo(() => createAlertService(accessToken), [accessToken]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -21,10 +23,12 @@ export function AlertsScreen({ accessToken }: { accessToken: string }) {
     const version = ++request.current;
     setLoading(true);
     try {
-      const rows = await service.list();
+      // The total only feeds a notice, so failing to count must not block the list.
+      const [rows, count] = await Promise.all([service.list(), service.count().catch(() => null)]);
       if (version !== request.current) return;
       setAlerts(rows);
-      setSelected(previous => new Set([...previous].filter(id => rows.some(row => row.id === id))));
+      setTotal(count);
+      setSelected(previous => keepLoaded(previous, rows.map(row => row.id)));
     } catch (e) { if (version === request.current) setError(alertError(e)); }
     finally { if (version === request.current) setLoading(false); }
   }, [service]);
@@ -33,7 +37,7 @@ export function AlertsScreen({ accessToken }: { accessToken: string }) {
 
   async function remove(ids: string[]) {
     setBusy(true); setError(''); setConfirmDelete(false);
-    try { await service.remove(ids); setSelected(new Set()); }
+    try { await service.remove(ids); setSelected(previous => withoutIds(previous, ids)); }
     catch (e) { setError(alertError(e)); }
     finally { setBusy(false); await load(); }
   }
@@ -45,25 +49,24 @@ export function AlertsScreen({ accessToken }: { accessToken: string }) {
 
   function toggle(id: string) {
     setConfirmDelete(false);
-    setSelected(previous => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setSelected(previous => toggleOne(previous, id));
   }
 
-  const allSelected = alerts.length > 0 && selected.size === alerts.length;
+  const loadedIds = alerts.map(alert => alert.id);
+  const allSelected = isAllSelected(selected, loadedIds);
+  const notice = selectionNotice(selected.size, alerts.length, total);
   const header = <View style={ui.header}>
     <Action title="‹ Voltar" onPress={() => router.back()} />
     <Text style={ui.title}>Alertas</Text>
     <Text style={ui.subtitle}>O que precisa da sua atenção. Um alerta some sozinho quando a pendência é resolvida.</Text>
     {alerts.length > 0 && <View style={ui.actions}>
       <Action title={allSelected ? 'Desmarcar todos' : 'Marcar todos'} disabled={busy}
-        onPress={() => { setConfirmDelete(false); setSelected(allSelected ? new Set() : new Set(alerts.map(alert => alert.id))); }} />
+        onPress={() => { setConfirmDelete(false); setSelected(previous => toggleAll(previous, loadedIds)); }} />
       {selected.size > 0 && <Action title={confirmDelete ? `Confirmar exclusão de ${selected.size}` : `Excluir selecionados (${selected.size})`} danger disabled={busy}
         onPress={() => { if (confirmDelete) void remove([...selected]); else setConfirmDelete(true); }} />}
       {confirmDelete && <Action title="Não excluir" disabled={busy} onPress={() => setConfirmDelete(false)} />}
     </View>}
+    {!!notice && <Text style={ui.hint}>{notice}</Text>}
     {confirmDelete && <Text style={ui.hint}>Só os alertas são excluídos. Os documentos continuam na Caixa de entrada.</Text>}
     {!!error && <Text accessibilityRole="alert" style={ui.danger}>{error}</Text>}
   </View>;
