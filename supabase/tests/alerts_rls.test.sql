@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(19);
 -- A has the patient-records module; B never had it.
 insert into auth.users(id,email) values
  ('a1000000-0000-0000-0000-000000000001','a@alerts.test'),
@@ -45,6 +45,30 @@ reset role;
 update public.documents set status='processing' where id='a3000000-0000-0000-0000-000000000001';
 select is((select count(*)::int from public.alerts where document_id='a3000000-0000-0000-0000-000000000001'),0,'deleted alert stays deleted');
 select is((select count(*)::int from public.documents where id='a3000000-0000-0000-0000-000000000001'),1,'deleting the alert keeps the document');
+
+-- A deletes several alerts at once: two marked, one left unmarked, and an id of B's sent along.
+insert into public.documents(id,owner_id,name,storage_path,mime_type,status) values
+ ('a3000000-0000-0000-0000-000000000003','a1000000-0000-0000-0000-000000000001','Laudo 3 de A',
+  'a1000000-0000-0000-0000-000000000001/a3000000-0000-0000-0000-000000000003/original','application/pdf','uploaded'),
+ ('a3000000-0000-0000-0000-000000000004','a1000000-0000-0000-0000-000000000001','Laudo 4 de A',
+  'a1000000-0000-0000-0000-000000000001/a3000000-0000-0000-0000-000000000004/original','application/pdf','uploaded'),
+ ('a3000000-0000-0000-0000-000000000005','a1000000-0000-0000-0000-000000000001','Laudo 5 de A',
+  'a1000000-0000-0000-0000-000000000001/a3000000-0000-0000-0000-000000000005/original','application/pdf','uploaded');
+insert into public.document_shares(document_id,user_id) values('a3000000-0000-0000-0000-000000000003','a1000000-0000-0000-0000-000000000002');
+select set_config('test.b_alert',(select id::text from public.alerts where user_id='a1000000-0000-0000-0000-000000000002'),true);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','a1000000-0000-0000-0000-000000000001',true);
+select lives_ok($$delete from public.alerts where id in (
+  (select id from public.alerts where document_id='a3000000-0000-0000-0000-000000000003'),
+  (select id from public.alerts where document_id='a3000000-0000-0000-0000-000000000004'),
+  current_setting('test.b_alert')::uuid)$$,'A deletes several alerts at once');
+select is((select count(*)::int from public.alerts where document_id in ('a3000000-0000-0000-0000-000000000003','a3000000-0000-0000-0000-000000000004')),0,'the marked alerts are deleted');
+select is((select count(*)::int from public.alerts where document_id='a3000000-0000-0000-0000-000000000005'),1,'the unmarked alert stays');
+reset role;
+
+select is((select count(*)::int from public.alerts where id=current_setting('test.b_alert')::uuid),1,'an alert of another doctor stays');
+select is((select count(*)::int from public.documents where id in ('a3000000-0000-0000-0000-000000000003','a3000000-0000-0000-0000-000000000004')),2,'deleting several alerts keeps the documents');
 
 select * from finish();
 rollback;

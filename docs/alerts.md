@@ -11,6 +11,8 @@ Alertas mostram o que precisa da atenção do médico. Ficam na home (os 3 mais 
 - **O banco cria o alerta** quando o evento acontece, por gatilho (`supabase/migrations/20261029000100_alerts.sql`).
 - **O alerta some sozinho** quando a pendência é resolvida.
 - **O médico pode excluir** um alerta, vários selecionados ou todos ("Marcar todos"). Excluir um alerta nunca apaga o documento.
+- **A tela carrega os 50 alertas mais recentes.** "Marcar todos" marca só os carregados; quando há mais alertas do que os carregados, a tela avisa ("50 de 120 marcados"). Depois de excluir, os próximos alertas aparecem sem nenhum marcado. Se a contagem do total falhar, a lista aparece sem o aviso.
+- **Excluir um único alerta preserva a seleção:** os outros alertas marcados continuam marcados. Se a exclusão falhar, a seleção não muda.
 - **Visualizar** marca o alerta como lido e abre a aba da Caixa de entrada onde o documento está.
 - Um alerta excluído não volta quando a análise do documento muda de status. Só volta se acontecer um evento novo, como o documento perder o paciente.
 
