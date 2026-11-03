@@ -20,6 +20,7 @@ function Routes() {
         <Stack.Screen name="admin" />
         <Stack.Screen name="analysis" />
         <Stack.Screen name="alerts" />
+        <Stack.Screen name="patient-chat" />
       </Stack.Protected>
       <Stack.Screen name="auth/callback" />
     </Stack>

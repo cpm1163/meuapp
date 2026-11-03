@@ -15,6 +15,12 @@ export const MODULE_TERMS_DRAFT: Record<string, string[]> = {
     'Você é responsável por ter base legal para tratar os dados pessoais e de saúde dos pacientes que cadastrar.',
     'Se a liberação vencer, você continua vendo, corrigindo e excluindo os cadastros, mas não cria pacientes novos nem vincula documentos.',
   ],
+  'patient-chat': [
+    'RASCUNHO — texto provisório, somente para teste.',
+    'O conteúdo deste chat é fictício e contém informações falsas de propósito. Não use com pacientes.',
+    'Cada pergunta é enviada a um provedor de inteligência artificial externo. Não escreva dados reais de pacientes.',
+    'As perguntas não ficam gravadas no app: só é registrado quantas foram feitas e quanto consumiram.',
+  ],
   'clinical-considerations': [
     'RASCUNHO — texto provisório, sujeito a revisão jurídica e à consulta regulatória antes de usuários externos.',
     'As considerações comparam os valores já transcritos do laudo com diretrizes selecionadas pelo app, conforme a idade e o sexo informados, e citam a fonte de cada comparação.',
