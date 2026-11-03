@@ -113,7 +113,8 @@ export function ModulesScreen({ accessToken }: Props) {
         {item.active && (item.terms_accepted
           ? <Text style={styles.hint}>Termos de uso aceitos (versão {item.terms_version}).</Text>
           : <Action title="Ler e aceitar os termos" disabled={busy} onPress={() => { setError(''); setTerms(item); }} />)}
-        {item.active && item.module_status !== 'active' && <Text style={styles.hint}>A análise ficará disponível quando o módulo for ativado.</Text>}
+        {item.active && item.module_status !== 'active' && item.module_id !== 'patient-chat' && <Text style={styles.hint}>A análise ficará disponível quando o módulo for ativado.</Text>}
+        {item.active && item.terms_accepted && item.module_id === 'patient-chat' && <Action title="Abrir o chat de teste" onPress={() => router.push('/patient-chat')} />}
         {!item.active && requestAction(requestable.find(row => row.module_id === item.module_id), true)}
       </View>} />
 

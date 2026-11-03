@@ -10,7 +10,7 @@ Visão registrada em 19/10/2026, em conversa com o usuário. **Nenhum código ai
 | 2 — Ingestão e curadoria | Proposta neste documento. |
 | 3 — Armazenamento e busca | Proposta neste documento; provedor de vetores a escolher. |
 | 4 — Uso 1 (análise do laudo) e uso 2 (consulta do médico) | Pendentes; dependem das [Considerações Clínicas](clinical-considerations.md). |
-| 5 — Uso 3 (pacientes e responsáveis) | Futuro; depende da consulta regulatória e da opinião do médico parceiro. |
+| 5 — Uso 3 (pacientes e responsáveis) | Teste local com KB fictícia em andamento ([Chat de teste](#chat-de-teste-add-patient-chat)). O uso real é futuro e depende da consulta regulatória e da opinião do médico parceiro. |
 
 Documentos relacionados: a seção de considerações clínicas e a bibliografia curada estão em [clinical-considerations.md](clinical-considerations.md), e os níveis de análise e a regulação em [compliance.md](compliance.md).
 
@@ -89,6 +89,51 @@ Mandar os artigos inteiros em cada pedido, sem busca, foi descartado para a aná
 
 O passo 2 serve aos três usos.
 
+## Implementação com OpenSpec
+
+Este documento guarda a visão, as decisões e as perguntas em aberto. O comportamento exigido fica nas specs de `openspec/specs/`, criadas a cada mudança com `/opsx:propose`, `/opsx:apply` e `/opsx:archive`. Uma decisão só vira requisito quando entra em uma spec aprovada.
+
+Mudanças previstas, nesta ordem. Os nomes são sugestões e podem mudar no `propose`.
+
+| Mudança | Capacidade na spec | O que cobre | Antes do `propose` |
+| --- | --- | --- | --- |
+| `add-kb-sources` | `kb-sources` | Fontes, trechos e afirmações, curadoria, marcação por idade e sexo, acesso restrito | Quantidade e formato das publicações; diretrizes de sociedades na base ou não |
+| `add-kb-search` | `kb-search` | Busca filtrada pela população e lacunas visíveis | Fornecedor de vetores e limite de gasto |
+| `add-kb-doctor-answers` | `kb-answers` | Usos 1 e 2: respostas só com a base e citações conferidas | Direitos de uso; encaixe com as [Considerações Clínicas](clinical-considerations.md) |
+| `add-patient-chat` | `patient-chat` | Uso 3: acesso do paciente ou responsável, limites de uso e sinais de urgência | Nada para o teste com a KB fictícia. Com pacientes reais: consulta regulatória, opinião do médico parceiro e modelo de venda |
+
+Cada mudança deve ser pequena o bastante para ser testada e arquivada sozinha. Se uma delas crescer demais, dividir no `propose`.
+
+## Chat de teste (`add-patient-chat`)
+
+Teste dos guardrails do uso 3, com a KB fictícia e sem pacientes reais. **O resultado vale só para este teste e não libera uso real.** Uso real exige a consulta regulatória, a opinião do médico parceiro, a revisão dos textos fixos e da lista de sinais de urgência, e um conjunto novo de perguntas.
+
+O comportamento exigido está na spec `patient-chat`. Em resumo: a IA só classifica a pergunta, e o código mostra uma resposta fixa ou o texto literal de um item, com a citação. A urgência é acionada pela lista de sinais do código ou pela IA, e a lista nunca bloqueia nem recusa uma mensagem.
+
+- **Modelo:** o Claude Haiku 5.5 foi aprovado só para este teste. Antes de uso real, precisa de nova avaliação, com mais casos de urgência.
+- **Só local:** a função e a KB ficam no Supabase local.
+- **`db push`:** a migração `20261103000100_patient_chat.sql` pode chegar à nuvem no próximo envio. Ela fica inerte lá: o módulo está `disabled` e não há dados da KB. Depois disso, desfazê-la exige uma nova migração.
+- **Custo:** cada pergunta é uma chamada paga à API, mesmo com o Supabase local. Nenhuma chamada paga roda sem a confirmação do usuário.
+
+### Como rodar localmente
+
+1. Coloque a chave da API, do workspace `exames-ia`, em `supabase/functions/.env`, que fica fora do git: `ANTHROPIC_API_KEY=...`
+2. Aplique a migração e carregue a KB: `npx supabase migration up --local` e `node tests/patient-chat.seed.cjs`.
+3. Sirva a função: `npx supabase functions serve patient-chat --env-file supabase/functions/.env`.
+4. Confira sem custo o que seria enviado: `node tests/patient-chat.eval.cjs --dry-run`.
+5. Teste de aceite pago: `node tests/patient-chat.eval.cjs --confirm-paid`, com `--only <n>` para uma pergunta. A pergunta 11 vem de `PATIENT_CHAT_Q11`.
+
+### Como apontar o celular para o local
+
+No SDK 57, `.env.local` tem prioridade sobre `.env` e fica fora do git. Crie esse arquivo só durante o teste, com o IP do computador na rede local e a chave publicável mostrada por `npx supabase status`:
+
+```
+EXPO_PUBLIC_SUPABASE_URL=http://<IP do computador>:54321
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<chave publicável local>
+```
+
+Depois rode `npx expo start -c --lan` e entre com a conta de teste, criada pela carga local: `chat-teste@patient-chat.test`, senha `chat-teste-local-only`. Para voltar à nuvem, apague o `.env.local` e rode `npx expo start -c` de novo.
+
 ## Perguntas em aberto
 
 - [ ] Quantas publicações o médico parceiro tem, e em que formato (PDF de revista, capítulo de livro)?
@@ -96,6 +141,8 @@ O passo 2 serve aos três usos.
 - [ ] Entram também diretrizes de sociedades (SBP, SBD, SBC) na mesma base?
 - [ ] Qual fornecedor de vetores, com que limite de gasto?
 - [ ] Como declarar que o médico parceiro é curador e também autor de parte da base?
+- [ ] O uso 3 responde com trechos das publicações, como os usos 1 e 2, ou com fichas de pergunta e resposta aprovadas pelo médico? As fichas são mais simples e seguras para leigos e podem dispensar embeddings no começo (levantado em 03/11/2026).
+- [ ] O uso 3 será um módulo vendido à parte, contratado pelo médico para os próprios pacientes, com limite mensal de perguntas? Ideia do usuário em 03/11/2026, ainda não decidida.
 
 ## Decisões
 
@@ -103,3 +150,5 @@ O passo 2 serve aos três usos.
 - [x] Uma base só, com cada fonte, trecho e afirmação marcado por faixa de idade (em números) e sexo; o código filtra pela população do paciente e mostra as lacunas ao médico parceiro (19/10/2026).
 - [x] O médico parceiro fornece as referências bibliográficas para a base (19/10/2026).
 - [x] Provisório (23/10/2026): as considerações clínicas começam só com afirmações curadas de diretrizes oficiais, sem busca por vetores; as publicações do médico parceiro e o RAG entram depois ([clinical-considerations.md](clinical-considerations.md#decisões-provisórias-23102026)).
+- [x] Sem consulta regulatória nesta fase (03/11/2026): o chatbot pode ser construído e testado com a KB fictícia, sem pacientes reais. A consulta volta a ser avaliada antes de liberar o uso real.
+- [x] Chat de teste (03/11/2026): só local, com a KB inteira no prompt, sem vetores; a IA classifica e o código mostra uma resposta fixa ou o texto literal do item; as 18 perguntas de teste são os critérios de aceite. O módulo nasce `disabled`, porque `requestable_modules` mostra módulos em `draft`.
