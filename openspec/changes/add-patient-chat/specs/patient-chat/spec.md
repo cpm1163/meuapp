@@ -173,6 +173,44 @@ O sistema SHALL mostrar na tela de chat, de forma permanente, que o conteúdo é
 - **WHEN** o usuário abre a tela de chat
 - **THEN** o aviso de conteúdo fictício fica visível, inclusive depois de uma resposta
 
+#### Scenario: Resposta longa
+- **WHEN** a resposta é longa e o usuário rola a conversa
+- **THEN** o aviso continua visível
+
+### Requirement: Abrir o chat pelo menu da conta
+O sistema SHALL mostrar a entrada "Chat de teste" no menu da conta só para quem tem o módulo liberado e os termos aceitos, sem novo atalho na home.
+
+#### Scenario: Com acesso
+- **WHEN** um usuário com o módulo liberado e os termos aceitos abre o menu da conta
+- **THEN** a entrada aparece e leva à tela de chat
+
+#### Scenario: Sem acesso
+- **WHEN** o usuário não tem o módulo ou os termos aceitos, ou a consulta falha
+- **THEN** a entrada não aparece
+
+#### Scenario: Termos recém-aceitos
+- **WHEN** o usuário aceita os termos em Meus módulos e volta à home
+- **THEN** a entrada aparece no menu da conta sem reabrir o app
+
+### Requirement: Apresentar como conversa
+O sistema SHALL mostrar só a última pergunta e a última resposta em balões, com o campo de envio sempre acessível.
+
+#### Scenario: Antes da primeira pergunta
+- **WHEN** o usuário abre a tela e ainda não enviou nenhuma pergunta
+- **THEN** a tela mostra um texto fixo dizendo que cada pergunta é tratada sozinha
+
+#### Scenario: Pergunta enviada
+- **WHEN** o usuário envia uma pergunta
+- **THEN** a pergunta aparece logo, com o indicador de espera até a resposta
+
+#### Scenario: Nova pergunta
+- **WHEN** o usuário envia outra pergunta
+- **THEN** a pergunta anterior e sua resposta saem da tela
+
+#### Scenario: Teclado aberto
+- **WHEN** o usuário abre o teclado para escrever
+- **THEN** o campo de envio continua visível
+
 ### Requirement: Restringir o teste ao ambiente local
 O sistema MUST recusar carregar a KB fictícia ou rodar o teste de aceite fora do Supabase local, e o teste de aceite MUST exigir confirmação explícita de custo.
 

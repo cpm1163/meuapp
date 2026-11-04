@@ -158,6 +158,15 @@ test('a connection failure or an unknown error shows the fixed failure reply', a
   assert.deepEqual(await ask(), failure);
 });
 
+test('the chat entry needs the module released, with the terms accepted, in testing or active', () => {
+  const {canOpenPatientChat} = load('src/features/patient-chat/access.ts');
+  const open = {module_id: 'patient-chat', module_status: 'testing', active: true, terms_accepted: true};
+  assert.equal(canOpenPatientChat(open), true);
+  assert.equal(canOpenPatientChat({...open, module_status: 'active'}), true);
+  for (const change of [{module_id: 'lab-report'}, {active: false}, {terms_accepted: false}, {module_status: 'disabled'}, {module_status: 'draft'}])
+    assert.equal(canOpenPatientChat({...open, ...change}), false, JSON.stringify(change));
+});
+
 test('the limit message carries the urgency guidance', async () => {
   invoke = async () => ({data: null, error: new FunctionsHttpError({error: 'chat_limit_reached'})});
   assert.match((await ask()).text, /limite[\s\S]*192/);

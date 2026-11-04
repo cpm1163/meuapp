@@ -8,6 +8,7 @@ import { createDocumentService } from "@/features/documents/service";
 import { createAlertService } from "@/features/alerts/service";
 import { createModuleService } from "@/features/modules/service";
 import { PatientForm } from "@/features/patients/PatientForm";
+import { canOpenPatientChat } from "@/features/patient-chat/access";
 import { createPatientService } from "@/features/patients/service";
 import { DoctorProfileForm } from "@/features/prescriptions/DoctorProfileForm";
 import { createPrescriptionService, type DoctorProfile } from "@/features/prescriptions/service";
@@ -24,6 +25,7 @@ export default function Home() {
   const [patientsCheck, setPatientsCheck] = useState<{ userId: string; value: boolean; canCreate: boolean } | null>(null);
   const [alerts, setAlerts] = useState<{ userId: string; total: number; unread: number } | null>(null);
   const [inbox, setInbox] = useState<{ userId: string; own: number; shared: number } | null>(null);
+  const [chatCheck, setChatCheck] = useState<{ userId: string; value: boolean } | null>(null);
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   // undefined: closed; otherwise the form is open with the profile loaded (null when there is none yet).
@@ -53,6 +55,7 @@ export default function Home() {
   const canCreatePatient = hasPatients && patientsCheck.canCreate;
   const alertState = alerts && alerts.userId === userId ? alerts : null;
   const inboxState = inbox && inbox.userId === userId ? inbox : null;
+  const canOpenChat = !!chatCheck && chatCheck.userId === userId && chatCheck.value;
   // With the module the inbox holds the unassigned documents; without it, all of the doctor's documents.
   const inboxScope = hasPatients ? "unassigned" : "mine";
 
@@ -71,6 +74,15 @@ export default function Home() {
     }).catch(() => { if (active) setInbox(null); });
     return () => { active = false; };
   }, [documents, userId, patientsKnown, inboxScope]));
+
+  // On focus: the terms are accepted on another screen, and this one stays mounted behind it.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    if (modules && userId) void modules.myModules().then(list => {
+      if (active) setChatCheck({ userId, value: list.some(item => canOpenPatientChat(item)) });
+    }).catch(() => { if (active) setChatCheck(null); });
+    return () => { active = false; };
+  }, [modules, userId]));
 
   function inboxSummary() {
     if (!inboxState) return "Documentos sem paciente e compartilhados com você";
@@ -110,7 +122,7 @@ export default function Home() {
     router.push({ pathname: "/patients", params: search.trim() ? { search: search.trim() } : {} });
   }
 
-  function openMenuRoute(pathname: "/modules" | "/admin") {
+  function openMenuRoute(pathname: "/modules" | "/patient-chat" | "/admin") {
     setAccountOpen(false);
     router.push(pathname);
   }
@@ -178,6 +190,7 @@ export default function Home() {
             {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
             <MenuButton title={profileBusy ? "Abrindo…" : "Meus dados"} onPress={() => void openProfile()} disabled={profileBusy} />
             <MenuButton title="Meus módulos" onPress={() => openMenuRoute("/modules")} />
+            {canOpenChat && <MenuButton title="Chat de teste" onPress={() => openMenuRoute("/patient-chat")} />}
             {isAdmin && <MenuButton title="Administração" onPress={() => openMenuRoute("/admin")} />}
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: loading }} disabled={loading} onPress={signOut} style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}><Text style={styles.signOutText}>{loading ? "Saindo…" : "Sair da conta"}</Text></Pressable>
             {!!userId && <DevAccountSwitcher currentUserId={userId} onDone={() => setAccountOpen(false)} />}

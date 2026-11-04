@@ -11,6 +11,9 @@ import {buildChatParams} from '../../../modules/patient-chat/request.ts';
 import {hasUrgencySignal} from '../../../modules/patient-chat/urgency-signals.ts';
 import {anthropicClient, authenticate, corsHeaders, errorResponse, json, log, serviceClient} from '../_shared/common.ts';
 
+// A new connection per call: a reused one that had died failed the question without any retry to save it.
+const noPoolClient = Deno.createHttpClient({poolMaxIdlePerHost: 0});
+
 // Refusals raised by start_patient_chat, by exception message.
 const START_ERRORS: Record<string, number> = {
   not_authenticated: 401,
@@ -63,7 +66,8 @@ Deno.serve(async req => {
     try {
       // No automatic retry (docs/compliance.md, Travas de custo); Haiku has no server-side fallback on a refusal.
       const response = await anthropicClient({retries: 0, timeout: 30_000}).messages.create(
-        buildChatParams(question, kb) as unknown as Anthropic.MessageCreateParamsNonStreaming);
+        buildChatParams(question, kb) as unknown as Anthropic.MessageCreateParamsNonStreaming,
+        {fetchOptions: {client: noPoolClient} as RequestInit});
       const {error} = await service.from('patient_chat_usage').update({
         model: response.model, input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens,
       }).eq('id', usageId);
@@ -77,7 +81,12 @@ Deno.serve(async req => {
       log('patient_chat_tokens', {model: response.model, input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens});
     } catch (error) {
       reason = 'provider_error';
-      log('patient_chat_provider_error', {status: (error as {status?: number}).status ?? null});
+      // A connection failure has no status: the name and the cause tell a timeout from a dropped connection.
+      const {status, cause} = error as {status?: number; cause?: {name?: string; message?: string}};
+      log('patient_chat_provider_error', {
+        status: status ?? null, error_class: (error as object)?.constructor?.name ?? null, cause_name: cause?.name ?? null,
+        cause_message: cause?.message?.replaceAll(question, '[pergunta]').slice(0, 200) ?? null,
+      });
     }
   }
 

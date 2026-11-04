@@ -77,6 +77,7 @@ Uma recusa da IA pode acontecer justamente nas perguntas 11 e 18. Por isso `unav
 - **Formato:** `output_config.format` com o esquema pequeno acima, e validação em código mesmo assim. Se a API rejeitar o formato na primeira chamada paga, o caminho é o que `modules/lab-report` já usa: esquema no prompt e validação em código.
 - **KB no prompt:** a KB inteira vai no `system`, marcada como dado, nunca como instrução. A pergunta vai sozinha em `messages`, também como dado.
 - **Prompt sem as perguntas de teste:** o prompt descreve as categorias em termos gerais e não copia nenhuma das 18 perguntas. Caso contrário, a aprovação não mediria nada.
+- **Conexão nova por chamada:** a função não reaproveita conexões com a API. Nas rodadas de 03 e 04/11/2026, uma conexão reaproveitada que já tinha caído fez perguntas falharem, e a regra de não tentar de novo não dava outra chance a elas.
 - **Sem histórico:** cada pergunta é independente. Isso reduz o custo e o espaço para burlas em várias mensagens, e basta para os critérios de aceite.
 
 ### KB em tabela sem acesso pelo app
@@ -101,15 +102,25 @@ O status é `disabled`, não `draft`. `can_use_module` não libera nenhum dos do
 
 *Alternativa:* manter `draft` e retirá-lo dessas duas funções. Foi descartada porque muda uma regra de todos os módulos, fora do escopo.
 
+### Exceção: conferência visual na nuvem
+
+Em 04/11/2026, com o app em desenvolvimento, o usuário decidiu conferir a navegação e a tela do chat ligado à nuvem. Entram só a migração, o status `testing` durante a conferência, a liberação para a conta dele e o aceite dos termos. A função e a KB continuam só no local, e nenhuma pergunta é enviada. Uma pergunta enviada por engano recebe a resposta fixa de falha, sem chamar a IA, porque a função não existe na nuvem.
+
+Por pedido do usuário, o botão de envio fica desativado em código até a retomada da conversa, para não haver envio por engano. O campo continua editável, para conferir o teclado.
+
+A tela de Administração libera o módulo, mas não muda o status, então o status muda por comando. Ao terminar, a liberação é revogada e o módulo volta a `disabled`.
+
 `tests/patient-chat.seed.cjs` é o único que passa o módulo a `testing`. Ele aceita só `localhost` ou `127.0.0.1` e, nesse ambiente, carrega a KB, cria a conta de teste, libera o módulo e aceita os termos. O comando `npx supabase functions serve patient-chat --env-file supabase/functions/.env` lê a chave da API de um arquivo já ignorado pelo git.
 
 No celular, o app precisa do endereço do computador na rede local e da chave local. Antes de implementar, conferir na documentação da versão do Expo se `.env.local` tem prioridade sobre `.env`. Se tiver, o `.env` não muda, e voltar à nuvem é só apagar um arquivo.
 
 ### Tela
 
-`src/app/patient-chat.tsx` e `src/features/patient-chat/` seguem o padrão de `alerts`. A tela tem o aviso fixo de conteúdo fictício, o campo de pergunta e a última resposta com a citação. O envio fica desativado enquanto há pedido em andamento, e nenhuma pergunta é enviada sem o toque do usuário.
+`src/app/patient-chat.tsx` e `src/features/patient-chat/` seguem o padrão de `alerts`. A tela tem três áreas: o aviso de conteúdo fictício fixo no topo, os balões no meio, que são a única parte que rola, e o campo com o botão de envio fixos embaixo, acompanhando o teclado. O envio fica desativado enquanto há pedido em andamento, e nenhuma pergunta é enviada sem o toque do usuário. O campo não limita o tamanho do texto, porque uma mensagem longa com sinal de urgência precisa chegar à função.
 
-A entrada é uma ação no cartão do módulo em `ModulesScreen`, porque novos recursos não viram atalho na home (decisão de 29/10/2026). O aviso atual para módulos em teste ("A análise ficará disponível…") não vale para este módulo e deixa de aparecer nele.
+A tela mostra só a última pergunta e resposta, com a citação. Um histórico daria a impressão de que o bot lembra das anteriores, e cada pergunta é independente. Antes da primeira pergunta, um texto fixo explica isso.
+
+As entradas são o menu da conta e a ação no cartão do módulo em `ModulesScreen`, usando a mesma condição: módulo ativo e termos aceitos. O menu fica fora da home visível, então respeita a decisão de 29/10/2026 de não criar atalho novo. A home refaz a consulta ao receber o foco, ignora resultado de outra conta e, em caso de falha, esconde a entrada. O aviso atual para módulos em teste ("A análise ficará disponível…") não vale para este módulo e deixa de aparecer nele.
 
 ### Teste de aceite separado do `npm test`
 
@@ -133,13 +144,14 @@ Os testes do `npm test` usam um cliente falso, sem custo.
 - [Ajustar o prompt até passar nas 18 pode mascarar falhas] → Cada ajuste continua em termos gerais; antes de um uso real será preciso um conjunto de perguntas novas.
 - [Item errado, porém existente] → O código só confere a existência do item, não a relação com a pergunta. As perguntas 8 e 9 têm temas próximos para medir isso.
 - [Texto de urgência sem revisão médica] → O ambiente é só de teste, os textos ficam marcados como rascunho e a revisão é condição para uso real.
-- [Migração chegar à nuvem no próximo `db push`] → O módulo `disabled` e a ausência de dados da KB a tornam inerte. Uma publicação em massa das funções também não abriria o acesso. O aviso fica em `docs/knowledge-base.md` e no roteiro.
+- [Migração na nuvem] → Ela só adiciona o módulo, tabelas vazias e funções. Fora da conferência, o módulo `disabled` e a ausência de dados da KB a tornam inerte. Uma publicação em massa das funções também não abriria o acesso. O aviso fica em `docs/knowledge-base.md` e no roteiro.
+- [Módulo em `testing` aparece para outros médicos] → Durante a conferência, qualquer médico logado vê o módulo em Meus módulos e pode solicitá-lo. O módulo volta a `disabled` ao terminar.
 - [Esquecer o app apontando para o local] → Usar arquivo separado e, no roteiro, a etapa de voltar à nuvem.
 - [Chave da API na máquina local] → O arquivo fica fora do git. O crédito pré-pago e o limite mensal continuam como trava final, e a chave deve ser do workspace `exames-ia`.
 
 ## Migration Plan
 
-1. Aplicar a migração só no local, com `npx supabase migration up --local`.
+1. Aplicar a migração no local, com `npx supabase migration up --local`, e na nuvem só para a conferência visual, com a confirmação do usuário.
 2. Rodar a carga local e servir a função.
 3. Com a confirmação do usuário, rodar uma pergunta e, depois, as 18.
-4. Para desfazer: remover a migração local, a função e o código. Esta mudança não aplica nada na nuvem, mas a migração pode chegar lá no próximo `db push`, inerte. Depois disso, desfazê-la exige uma nova migração.
+4. Para desfazer: remover a função e o código e, na nuvem, revogar a liberação e voltar o módulo a `disabled`. Remover a migração da nuvem exige uma nova migração.
