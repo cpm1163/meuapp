@@ -111,8 +111,8 @@ Teste dos guardrails do uso 3, com a KB fictícia e sem pacientes reais. **O res
 O comportamento exigido está na spec `patient-chat`. Em resumo: a IA só classifica a pergunta, e o código mostra uma resposta fixa ou o texto literal de um item, com a citação. A urgência é acionada pela lista de sinais do código ou pela IA, e a lista nunca bloqueia nem recusa uma mensagem.
 
 - **Modelo:** o Claude Haiku 5.5 foi aprovado só para este teste. Antes de uso real, precisa de nova avaliação, com mais casos de urgência.
-- **Só local:** a função e a KB ficam no Supabase local.
-- **`db push`:** a migração `20261103000100_patient_chat.sql` pode chegar à nuvem no próximo envio. Ela fica inerte lá: o módulo está `disabled` e não há dados da KB. Depois disso, desfazê-la exige uma nova migração.
+- **Função e KB só no local:** a função e a KB não vão para a nuvem.
+- **Migração na nuvem:** a migração `20261103000100_patient_chat.sql` foi aplicada na nuvem em 04/11/2026, para a conferência visual. Fora dela, fica inerte: o módulo fica em `disabled` e não há dados da KB. Desfazê-la exige uma nova migração.
 - **Custo:** cada pergunta é uma chamada paga à API, mesmo com o Supabase local. Nenhuma chamada paga roda sem a confirmação do usuário.
 
 ### Como rodar localmente
@@ -133,6 +133,27 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<chave publicável local>
 ```
 
 Depois rode `npx expo start -c --lan` e entre com a conta de teste, criada pela carga local: `chat-teste@patient-chat.test`, senha `chat-teste-local-only`. Para voltar à nuvem, apague o `.env.local` e rode `npx expo start -c` de novo.
+
+### Roteiro no celular
+
+O chat tem duas entradas, para quem tem o módulo liberado e os termos aceitos: o menu do avatar ("Chat de teste") e o cartão do módulo em Meus módulos. A web não conta como validação.
+
+**Conferência visual na nuvem, sem custo de IA e sem enviar pergunta.** Rode `npx expo start -c`, sem `.env.local`. O módulo precisa estar em `testing`; a função não está na nuvem. Em Administração, libere o módulo para a sua conta e, em Meus módulos, aceite os termos.
+
+1. Volte à home, toque no avatar e confira "Chat de teste" entre "Meus módulos" e "Administração". Toque nele.
+2. Confira o aviso de conteúdo fictício no topo e, no meio, o texto dizendo que cada pergunta é tratada sozinha.
+3. Toque no campo: com o teclado aberto, o campo e o botão de envio continuam visíveis. O botão fica desativado nesta etapa, mesmo com texto no campo.
+4. Volte, abra Meus módulos e confira que "Abrir o chat de teste" leva à mesma tela.
+5. Ao terminar, revogue a liberação e volte o módulo a `disabled`: em `testing`, qualquer médico logado vê o módulo e pode solicitá-lo.
+
+**Conversa no local, com custo, só com a confirmação do usuário.** Reative o envio em `PatientChatScreen.tsx` e aponte o celular para o local, como descrito acima. Cada pergunta é uma chamada paga; a função precisa estar rodando.
+
+1. Envie perguntas de cada tipo. A pergunta aparece logo, com o indicador de espera, e a resposta vem no balão, com a fonte quando houver.
+2. Envie outra pergunta e confira que a anterior e sua resposta saem da tela.
+3. Numa resposta longa, role a conversa e confira que o aviso continua visível.
+4. Pare a função e envie uma pergunta: a tela mostra a resposta fixa de falha, com a orientação de urgência.
+
+Ao terminar, volte à nuvem como descrito acima.
 
 ## Perguntas em aberto
 

@@ -43,8 +43,22 @@
 - [x] 7.4 Preparar o roteiro do celular: apontar para o local, entrar pela tela Módulos, enviar perguntas de cada tipo, testar falha de conexão e voltar à nuvem, com o aviso de que a migração pode chegar à nuvem no próximo `db push`, inerte, com o módulo `disabled` e sem dados da KB; verificar pelo roteiro entregue
 - [ ] 7.5 O usuário executa o roteiro no celular; verificar pela confirmação dele, já que a web não conta como validação
 
+## 8. Navegação e apresentação (04/11/2026)
+
+- [x] 8.1 Criar uma função única que decide se o chat pode ser aberto e usá-la em `ModulesScreen`; verificar em `tests/patient-chat.test.cjs`
+- [x] 8.2 Adicionar "Chat de teste" ao menu da conta em `home.tsx`, entre "Meus módulos" e "Administração", com nova consulta ao receber o foco; verificar com `npx expo lint`, `npx tsc --noEmit` e pelo diff, que não muda o conteúdo da home
+- [x] 8.3 Conferir na documentação do Expo SDK 57 o tratamento do teclado e reestruturar `PatientChatScreen` no estilo conversa, com o texto fixo antes da primeira pergunta; verificar com `npx expo lint` e `npx tsc --noEmit`
+- [x] 8.4 Atualizar o roteiro do celular e `docs/knowledge-base.md` com a nova entrada e a nova tela; verificar pela leitura do roteiro
+- [x] 8.5 Rodar `npm test`, `npx expo lint` e `npx tsc --noEmit`, um de cada vez; verificar pelos comandos sem erro
+- [x] 8.6 Atualizar o roteiro em `docs/knowledge-base.md` com a conferência na nuvem; verificar pela leitura do roteiro
+- [x] 8.7 Com a confirmação do usuário, aplicar a migração na nuvem e passar o módulo a `testing`; verificar pela lista de migrações e pelo status
+- [x] 8.8 O usuário libera o módulo para a própria conta em Administração, aceita os termos e confere no celular, sem enviar pergunta, a entrada pelo menu, o aviso fixo, a tela antes da primeira pergunta e o campo com o teclado aberto; verificar pela confirmação dele. Os balões com resposta ficam para a tarefa 7.5
+- [x] 8.9 Ao terminar, revogar a liberação e voltar o módulo a `disabled`; verificar pelo status e por Meus módulos
+- [x] 8.10 Desativar em código o botão de envio até a retomada da conversa; verificar com `npx expo lint`, `npx tsc --noEmit` e pela leitura do código
+- [ ] 8.11 Antes da tarefa 7.5, reativar o envio na tela; verificar com `npx expo lint`, `npx tsc --noEmit` e `npm test`
+
 ## Workflow follow-up
 
 - Depois da aprovação do teste no celular, arquivar a mudança com `/opsx:archive`.
 - Os commits ficam com o usuário.
-- Publicar na nuvem ou usar com pacientes reais exige nova mudança, depois da consulta regulatória e da opinião do médico parceiro.
+- Publicar a função e a KB na nuvem ou usar com pacientes reais exige nova mudança, depois da consulta regulatória e da opinião do médico parceiro.

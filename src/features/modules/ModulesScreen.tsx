@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Modal, ScrollView, Text, View } from 'reac
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createModuleService, formatDate, GRANT_DAYS, moduleError, type MyModule, type RequestableModule } from './service';
+import { canOpenPatientChat } from '@/features/patient-chat/access';
 import { MODULE_TERMS_DRAFT } from './terms';
 import { Action, styles } from './ui';
 
@@ -114,7 +115,7 @@ export function ModulesScreen({ accessToken }: Props) {
           ? <Text style={styles.hint}>Termos de uso aceitos (versão {item.terms_version}).</Text>
           : <Action title="Ler e aceitar os termos" disabled={busy} onPress={() => { setError(''); setTerms(item); }} />)}
         {item.active && item.module_status !== 'active' && item.module_id !== 'patient-chat' && <Text style={styles.hint}>A análise ficará disponível quando o módulo for ativado.</Text>}
-        {item.active && item.terms_accepted && item.module_id === 'patient-chat' && <Action title="Abrir o chat de teste" onPress={() => router.push('/patient-chat')} />}
+        {canOpenPatientChat(item) && <Action title="Abrir o chat de teste" onPress={() => router.push('/patient-chat')} />}
         {!item.active && requestAction(requestable.find(row => row.module_id === item.module_id), true)}
       </View>} />
 
