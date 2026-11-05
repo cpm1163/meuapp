@@ -66,7 +66,7 @@ São rascunhos para o teste. Precisam de revisão do médico parceiro antes de q
 | `urgency` | Isso pode ser uma urgência. Procure atendimento agora: ligue 192 (SAMU) ou vá ao pronto-socorro mais próximo. Se houver risco de alguém tirar a própria vida, ligue também 188 (CVV), a qualquer hora. |
 | `not_in_kb` | Não tenho essa informação. Converse com o médico. |
 | `refer_doctor` | Não posso avaliar essa situação por aqui. Converse com o médico, que pode orientar você com segurança. |
-| `decline` | Não posso ajudar com esse pedido. Posso responder a dúvidas gerais sobre saúde. |
+| `decline` | Não posso responder sobre este assunto. Posso ajudar com dúvidas gerais sobre saúde. |
 | `unavailable` | Não consegui responder agora. Tente de novo em instantes. Se for urgência, ligue 192 (SAMU) ou vá ao pronto-socorro mais próximo. |
 
 Uma recusa da IA pode acontecer justamente nas perguntas 11 e 18. Por isso `unavailable` inclui a orientação de urgência. Na pergunta 11, o teste de aceite conta isso como falha, porque a resposta esperada é outra. Na pergunta 18, a lista ainda dá a resposta de urgência, e o relatório mostra o alerta de que a IA não detectou.
@@ -127,7 +127,8 @@ As entradas são o menu da conta e a ação no cartão do módulo em `ModulesScr
 `tests/patient-chat.eval.cjs` chama a função local com a conta de teste, uma pergunta de cada vez.
 
 - **Dados:** lê os textos do arquivo privado e tem a tabela de resultados esperados por número. O arquivo inteiro nunca é enviado à IA.
-- **Pergunta 11:** vem da variável `PATIENT_CHAT_Q11`, não é gravada nem impressa e, sem ela, a rodada fica incompleta.
+- **Falha de rede na aceitação:** em 05/11/2026, 12 de 509 chamadas gratuitas falharam dentro da rede do Docker local e 0 de 200 fora dela. Por decisão do usuário, nessa data, a pergunta que falhar por conexão é repetida com `--only`; a repetição fica registrada no relatório. Isso não mostra como a função se comporta na nuvem nem define o que o app faz quando a conexão cai.
+- **Pergunta 11:** vem de `pergunta.txt`, na raiz do projeto e fora do git, lido logo antes da rodada. O texto não é impresso nem vai para os logs e, sem ele, a rodada fica incompleta. Ele aparece só em `resposta.txt`, também fora do git, porque o usuário precisa da pergunta para avaliar a resposta (decisão de 05/11/2026). Decisão do usuário em 05/11/2026: na variável, o texto digitado não aparecia na tela, e ele não tinha como conferir o que enviou.
 - **Limpeza do texto:** uma função testável extrai só o texto de cada pergunta, sem as anotações finais entre parênteses, títulos e instruções. O corpo enviado contém só a pergunta.
 - **Execução:** `--confirm-paid` é obrigatório para chamar a IA, e `--only <n>` roda uma pergunta. `--dry-run` mostra o que seria enviado, sem chamar a IA e sem a pergunta 11, e confere que a lista de sinais não dispara nas perguntas da KB.
 - **Resultado:** traz o `outcome` e o item de cada pergunta, quem detectou cada urgência, o total de tokens e o custo medido. Se só a lista detectar uma urgência, a pergunta passa com alerta visível.

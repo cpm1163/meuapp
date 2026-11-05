@@ -63,6 +63,7 @@ Deno.serve(async req => {
   let reason: string | null = kbError || !kb.length ? 'kb_read_failed' : null;
 
   if (!reason) {
+    const aiStarted = Date.now();
     try {
       // No automatic retry (docs/compliance.md, Travas de custo); Haiku has no server-side fallback on a refusal.
       const response = await anthropicClient({retries: 0, timeout: 30_000}).messages.create(
@@ -78,13 +79,13 @@ Deno.serve(async req => {
         classification = parseClassification(response.content.find(block => block.type === 'text')?.text ?? '');
         if (!classification) reason = 'invalid_output';
       }
-      log('patient_chat_tokens', {model: response.model, input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens});
+      log('patient_chat_tokens', {model: response.model, input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens, ai_ms: Date.now() - aiStarted});
     } catch (error) {
       reason = 'provider_error';
       // A connection failure has no status: the name and the cause tell a timeout from a dropped connection.
       const {status, cause} = error as {status?: number; cause?: {name?: string; message?: string}};
       log('patient_chat_provider_error', {
-        status: status ?? null, error_class: (error as object)?.constructor?.name ?? null, cause_name: cause?.name ?? null,
+        ai_ms: Date.now() - aiStarted, status: status ?? null, error_class: (error as object)?.constructor?.name ?? null, cause_name: cause?.name ?? null,
         cause_message: cause?.message?.replaceAll(question, '[pergunta]').slice(0, 200) ?? null,
       });
     }

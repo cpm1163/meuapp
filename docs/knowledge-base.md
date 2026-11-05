@@ -119,9 +119,9 @@ O comportamento exigido está na spec `patient-chat`. Em resumo: a IA só classi
 
 1. Coloque a chave da API, do workspace `exames-ia`, em `supabase/functions/.env`, que fica fora do git: `ANTHROPIC_API_KEY=...`
 2. Aplique a migração e carregue a KB: `npx supabase migration up --local` e `node tests/patient-chat.seed.cjs`.
-3. Sirva a função: `npx supabase functions serve patient-chat --env-file supabase/functions/.env`.
+3. Sirva a função: `bash tests/patient-chat-serve.sh`. Além de mostrar os logs na tela, o script os salva em `.logs/`, fora do git, com data e hora em cada linha e a carga da máquina a cada 5 s.
 4. Confira sem custo o que seria enviado: `node tests/patient-chat.eval.cjs --dry-run`.
-5. Teste de aceite pago: `node tests/patient-chat.eval.cjs --confirm-paid`, com `--only <n>` para uma pergunta. A pergunta 11 vem de `PATIENT_CHAT_Q11`.
+5. Teste de aceite pago: `node tests/patient-chat.eval.cjs --confirm-paid`, com `--only <n>` para uma pergunta. Antes de rodar, escreva a pergunta 11 em `pergunta.txt`, na raiz do projeto e fora do git; o texto não é impresso nem vai para os logs, e o arquivo pode ser apagado ao terminar. Cada pergunta e o texto recebido ficam em `resposta.txt`, também fora do git, para o usuário avaliar: a rodada completa reescreve o arquivo, e `--only` acrescenta a repetição. Ele contém o texto da pergunta 11; apague-o ao terminar. A rodada salva em `.logs/` o resultado e o tempo de cada pergunta, identificada só pelo número.
 
 ### Como apontar o celular para o local
 
