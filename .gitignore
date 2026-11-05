@@ -41,5 +41,10 @@ yarn-error.*
 /ios
 /android
 
+# logs do acompanhamento local do chat e pergunta 11 do teste de aceite
+.logs/
+pergunta.txt
+resposta.txt
+
 # amostras reais com dados de saúde (não versionar)
 tests/fixtures/private/
