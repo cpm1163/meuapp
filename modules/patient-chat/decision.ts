@@ -16,7 +16,7 @@ export const REPLIES: Record<Exclude<Outcome, 'answer'>, string> = {
   urgency: 'Isso pode ser uma urgência. Procure atendimento agora: ligue 192 (SAMU) ou vá ao pronto-socorro mais próximo. Se houver risco de alguém tirar a própria vida, ligue também 188 (CVV), a qualquer hora.',
   not_in_kb: 'Não tenho essa informação. Converse com o médico.',
   refer_doctor: 'Não posso avaliar essa situação por aqui. Converse com o médico, que pode orientar você com segurança.',
-  decline: 'Não posso responder sobre este assunto. Posso ajudar com dúvidas gerais sobre saúde.',
+  decline: 'Infelizmente não consigo ajudar sobre este assunto.',
   unavailable: 'Não consegui responder agora. Tente de novo em instantes. Se for urgência, ligue 192 (SAMU) ou vá ao pronto-socorro mais próximo.',
 };
 
