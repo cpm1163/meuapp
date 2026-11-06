@@ -5,9 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Action, styles as ui } from '@/features/modules/ui';
 import { createPatientChatService, type ChatReply } from './service';
 
-// Off until the conversation test is resumed (openspec add-patient-chat, tasks 8.10 and 8.11): no question can leave this screen.
-const SENDING_ENABLED: boolean = false;
-
 // Test only: the person reads a fixed reply or the literal text of a KB item, never text written by the AI.
 // Only the last exchange is shown: each question stands alone, and a history would suggest the chat remembers.
 export function PatientChatScreen({ accessToken }: { accessToken: string }) {
@@ -16,11 +13,11 @@ export function PatientChatScreen({ accessToken }: { accessToken: string }) {
   const [asked, setAsked] = useState('');
   const [reply, setReply] = useState<ChatReply | null>(null);
   const [busy, setBusy] = useState(false);
-  const canSend = SENDING_ENABLED && !busy && !!question.trim();
+  const canSend = !busy && !!question.trim();
 
   async function send() {
     const text = question.trim();
-    if (!SENDING_ENABLED || !text || busy) return;
+    if (!text || busy) return;
     setBusy(true); setReply(null); setAsked(text); setQuestion('');
     setReply(await service.ask(text));
     setBusy(false);

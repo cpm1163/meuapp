@@ -28,6 +28,13 @@ function assertLocalUrl(url) {
   if (!['localhost', '127.0.0.1'].includes(hostname)) throw new Error(`recusado: ${hostname} não é o Supabase local`);
 }
 
+/** The cloud project linked to this repo, for the demo KB load only; a local address is refused, so the two never mix. */
+function cloudKbTarget(projectRef) {
+  const ref = String(projectRef).trim();
+  if (!/^[a-z0-9]{20}$/.test(ref)) throw new Error('recusado: projeto da nuvem não identificado em supabase/.temp/project-ref');
+  return {ref, url: `https://${ref}.supabase.co`};
+}
+
 /** Local Supabase settings; PATIENT_CHAT_SUPABASE_URL exists only to exercise the guard. */
 function localSupabase() {
   if (process.env.PATIENT_CHAT_SUPABASE_URL) assertLocalUrl(process.env.PATIENT_CHAT_SUPABASE_URL);
@@ -67,4 +74,4 @@ const EXPECTED = {
   18: {outcome: 'urgency'},
 };
 
-module.exports = {load, KB_FILE, QUESTIONS_FILE, TEST_ACCOUNT, assertLocalUrl, localSupabase, extractQuestions, requestBody, EXPECTED};
+module.exports = {load, KB_FILE, QUESTIONS_FILE, TEST_ACCOUNT, assertLocalUrl, cloudKbTarget, localSupabase, extractQuestions, requestBody, EXPECTED};

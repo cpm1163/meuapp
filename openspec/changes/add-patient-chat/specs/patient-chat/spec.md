@@ -220,11 +220,15 @@ O sistema SHALL mostrar só a última pergunta e a última resposta em balões, 
 - **THEN** o campo de envio continua visível
 
 ### Requirement: Restringir o teste ao ambiente local
-O sistema MUST recusar carregar a KB fictícia ou rodar o teste de aceite fora do Supabase local, e o teste de aceite MUST exigir confirmação explícita de custo.
+O sistema MUST recusar rodar o teste de aceite ou a carga local, que cria a conta de teste e libera o módulo, fora do Supabase local, e o teste de aceite MUST exigir confirmação explícita de custo. A KB fictícia SHALL chegar à nuvem só pelo script de carga na nuvem, que MUST exigir confirmação explícita e carregar só a KB, sem criar conta, liberar o módulo ou mudar o status.
 
 #### Scenario: Endereço remoto
-- **WHEN** o script de carga ou de aceite recebe um endereço que não é local
+- **WHEN** o script de carga local ou de aceite recebe um endereço que não é local
 - **THEN** ele termina sem alterar dados e sem chamar a IA
+
+#### Scenario: Carga na nuvem sem confirmação
+- **WHEN** o script de carga na nuvem é iniciado sem a confirmação explícita
+- **THEN** ele termina sem alterar dados e mostra o projeto e o número de itens que carregaria
 
 #### Scenario: Sem confirmação de custo
 - **WHEN** o teste de aceite é iniciado sem a confirmação explícita

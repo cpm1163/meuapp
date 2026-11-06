@@ -2,7 +2,7 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const {load, QUESTIONS_FILE, assertLocalUrl, extractQuestions, requestBody} = require('./patient-chat-helpers.cjs');
+const {load, QUESTIONS_FILE, assertLocalUrl, cloudKbTarget, extractQuestions, requestBody} = require('./patient-chat-helpers.cjs');
 
 const {parseKb} = load('modules/patient-chat/kb.ts');
 const decision = load('modules/patient-chat/decision.ts');
@@ -170,4 +170,22 @@ test('the chat entry needs the module released, with the terms accepted, in test
 test('the limit message carries the urgency guidance', async () => {
   invoke = async () => ({data: null, error: new FunctionsHttpError({error: 'chat_limit_reached'})});
   assert.match((await ask()).text, /limite[\s\S]*192/);
+});
+
+test('the cloud KB load targets only a linked cloud project ref', () => {
+  assert.deepEqual(cloudKbTarget('abcdefghijklmnopqrst\n'), {ref: 'abcdefghijklmnopqrst', url: 'https://abcdefghijklmnopqrst.supabase.co'});
+  for (const ref of ['', 'localhost', '127.0.0.1', 'abc', 'ABCDEFGHIJKLMNOPQRST', 'abcdefghijklmnopqrst.evil'])
+    assert.throws(() => cloudKbTarget(ref), /recusado/, ref);
+});
+
+test('the cloud KB load changes nothing without --confirm-cloud', {skip: !fs.existsSync('supabase/.temp/project-ref') || !fs.existsSync('tests/fixtures/private/kb/teste_kb.md')}, () => {
+  const {spawnSync} = require('node:child_process');
+  const run = args => spawnSync(process.execPath, ['tests/patient-chat.cloud-kb.cjs', ...args], {encoding: 'utf8'});
+  const dry = run(['--dry-run']);
+  assert.equal(dry.status, 0);
+  assert.match(dry.stdout, /Projeto da nuvem: [a-z0-9]{20}[\s\S]*\d+ itens[\s\S]*nada foi alterado/);
+  const refused = run([]);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /falta --confirm-cloud/);
+  assert.doesNotMatch(refused.stdout + refused.stderr, /KB na nuvem/);
 });
