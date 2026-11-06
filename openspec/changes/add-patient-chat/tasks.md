@@ -41,7 +41,7 @@
 - [x] 7.2 Com a confirmação do usuário para o custo, rodar uma pergunta com `--only 5`; verificar pelo resultado esperado (item 51) e comparar os tokens com a estimativa antes de seguir
 - [x] 7.3 Com nova confirmação do usuário, e com a pergunta 11 escrita por ele em `pergunta.txt`, rodar as 18 perguntas uma vez e repetir com `--only` só as que falharem por conexão, comprovada no log (decisão de 05/11/2026); verificar pelo relatório, que mostra quem detectou cada urgência e as repetições. Se alguma tiver resposta fora do esperado, ou se só a lista detectar uma urgência, parar e levar o resultado ao usuário
 - [x] 7.4 Preparar o roteiro do celular: apontar para o local, entrar pela tela Módulos, enviar perguntas de cada tipo, testar falha de conexão e voltar à nuvem, com o aviso de que a migração pode chegar à nuvem no próximo `db push`, inerte, com o módulo `disabled` e sem dados da KB; verificar pelo roteiro entregue
-- [ ] 7.5 O usuário executa o roteiro no celular; verificar pela confirmação dele, já que a web não conta como validação
+- [x] 7.5 O usuário executa o roteiro no celular, ligado à nuvem (decisão de 06/11/2026, coberta pela tarefa 10.7); verificar pela confirmação dele, já que a web não conta como validação
 
 ## 8. Navegação e apresentação (04/11/2026)
 
@@ -55,7 +55,7 @@
 - [x] 8.8 O usuário libera o módulo para a própria conta em Administração, aceita os termos e confere no celular, sem enviar pergunta, a entrada pelo menu, o aviso fixo, a tela antes da primeira pergunta e o campo com o teclado aberto; verificar pela confirmação dele. Os balões com resposta ficam para a tarefa 7.5
 - [x] 8.9 Ao terminar, revogar a liberação e voltar o módulo a `disabled`; verificar pelo status e por Meus módulos
 - [x] 8.10 Desativar em código o botão de envio até a retomada da conversa; verificar com `npx expo lint`, `npx tsc --noEmit` e pela leitura do código
-- [ ] 8.11 Antes da tarefa 7.5, reativar o envio na tela; verificar com `npx expo lint`, `npx tsc --noEmit` e `npm test`
+- [x] 8.11 Antes da tarefa 7.5, reativar o envio na tela; verificar com `npx expo lint`, `npx tsc --noEmit` e `npm test`
 
 ## 9. Acompanhamento local (05/11/2026)
 
@@ -69,8 +69,20 @@
 - [x] 9.8 Incluir as perguntas em `resposta.txt`, a pedido do usuário, e acrescentar as repetições de `--only` sem apagar a rodada; verificar pelo arquivo da rodada paga autorizada
 - [x] 9.9 Deixar claro no prompt que `not_in_kb` vale só para perguntas de saúde e, por decisão do usuário em 06/11/2026, decidir `decline` pela intenção e não pelo tema: recusar pedido de opinião, posição ou prática sobre política ou religião e preconceito expresso pela pessoa; encaminhar quando o tema faz parte da saúde dela ou ela sofre o preconceito; resposta "Infelizmente não consigo ajudar sobre este assunto."; verificar pelas 18 perguntas pagas, com autorização
 
+## 10. Demonstração na nuvem (06/11/2026)
+
+- [x] 10.1 Atualizar `docs/knowledge-base.md` com a decisão de 06/11/2026, o roteiro da demonstração e como desfazer; verificar pela leitura do documento
+- [x] 10.2 Criar o script que carrega só a KB na nuvem, com `--confirm-cloud` e `--dry-run`, mostrando o projeto e o número de itens, sem criar conta nem mudar o módulo; verificar sem custo com `--dry-run`, sem confirmação e em `npm test`
+- [x] 10.3 O usuário configura o limite de US$ 2 por mês no workspace `exames-ia` do Console; verificar pelo print da tela
+- [x] 10.4 Com o ok do usuário, publicar a função `patient-chat` na nuvem; verificar pela lista de funções
+- [x] 10.5 Com o ok do usuário, carregar a KB na nuvem; verificar pela contagem de itens
+- [x] 10.6 Com o ok do usuário, passar o módulo a `testing`; o usuário libera o módulo para a própria conta em Administração e aceita os termos; verificar pelo status e por Meus módulos
+- [x] 10.7 Com o ok do usuário para o custo, testar no Expo Go ligado à nuvem com poucas perguntas, uma de cada tipo, por menos de US$ 0,002; verificar pela confirmação dele
+- [ ] 10.8 Com o ok do usuário, gerar o build preview do APK no EAS; verificar instalando no celular e repetindo uma pergunta
+- [ ] 10.9 Depois da demonstração, revogar a liberação e voltar o módulo a `disabled`, mantendo a KB na nuvem para leitura e conferência; verificar pelo status e por Meus módulos
+
 ## Workflow follow-up
 
 - Depois da aprovação do teste no celular, arquivar a mudança com `/opsx:archive`.
 - Os commits ficam com o usuário.
-- Publicar a função e a KB na nuvem ou usar com pacientes reais exige nova mudança, depois da consulta regulatória e da opinião do médico parceiro.
+- Usar com pacientes reais ou liberar o chat para outros médicos exige nova mudança, depois da consulta regulatória e da opinião do médico parceiro. A demonstração de 07/11/2026 é a exceção registrada na seção 10.

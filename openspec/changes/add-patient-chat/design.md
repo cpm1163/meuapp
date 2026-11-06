@@ -16,7 +16,7 @@ Três fatos limitam o desenho:
 
 - Garantir por construção que nenhum texto da IA chegue à pessoa.
 - Medir os guardrails com as 18 perguntas, gastando o mínimo.
-- Manter a KB fictícia fora do git e da nuvem do Supabase.
+- Manter a KB fictícia fora do git e, salvo pela demonstração de 07/11/2026, fora da nuvem do Supabase.
 
 **Non-Goals:**
 
@@ -114,6 +114,16 @@ A tela de Administração libera o módulo, mas não muda o status, então o sta
 
 No celular, o app precisa do endereço do computador na rede local e da chave local. Antes de implementar, conferir na documentação da versão do Expo se `.env.local` tem prioridade sobre `.env`. Se tiver, o `.env` não muda, e voltar à nuvem é só apagar um arquivo.
 
+### Exceção: demonstração na nuvem (06/11/2026)
+
+O usuário decidiu apresentar o chat ao médico parceiro em 07/11/2026, no APK. Para isso, a função `patient-chat` é publicada na nuvem e usa o segredo `ANTHROPIC_API_KEY` já existente, o mesmo da análise de documentos, do workspace `exames-ia`. A KB fictícia é carregada por um script próprio, que aceita só o projeto da nuvem ligado ao repositório, mostra o projeto e o número de itens, exige `--confirm-cloud` e tem `--dry-run`. Ele carrega só a KB: não cria conta, não libera o módulo e não muda o status.
+
+O status passa a `testing` por comando, e o usuário libera o módulo só para a própria conta pela Administração e aceita os termos. O envio é reativado na tela. O teste de aceite pago continua só no local.
+
+Depois da demonstração, a liberação é revogada e o módulo volta a `disabled`. A KB fica na nuvem, por decisão do usuário, para leitura e conferência pelo painel do Supabase; o app continua sem acesso a ela, e a função continua publicada, sem uso enquanto o módulo estiver `disabled`.
+
+*Alternativa:* rodar tudo no computador e acessar pelo Expo Go na rede local. Foi descartada para a apresentação, porque depende da mesma rede e mantém as falhas de conexão do Docker local.
+
 ### Tela
 
 `src/app/patient-chat.tsx` e `src/features/patient-chat/` seguem o padrão de `alerts`. A tela tem três áreas: o aviso de conteúdo fictício fixo no topo, os balões no meio, que são a única parte que rola, e o campo com o botão de envio fixos embaixo, acompanhando o teclado. O envio fica desativado enquanto há pedido em andamento, e nenhuma pergunta é enviada sem o toque do usuário. O campo não limita o tamanho do texto, porque uma mensagem longa com sinal de urgência precisa chegar à função.
@@ -148,6 +158,10 @@ Os testes do `npm test` usam um cliente falso, sem custo.
 - [Migração na nuvem] → Ela só adiciona o módulo, tabelas vazias e funções. Fora da conferência, o módulo `disabled` e a ausência de dados da KB a tornam inerte. Uma publicação em massa das funções também não abriria o acesso. O aviso fica em `docs/knowledge-base.md` e no roteiro.
 - [Módulo em `testing` aparece para outros médicos] → Durante a conferência, qualquer médico logado vê o módulo em Meus módulos e pode solicitá-lo. O módulo volta a `disabled` ao terminar.
 - [Esquecer o app apontando para o local] → Usar arquivo separado e, no roteiro, a etapa de voltar à nuvem.
+- [KB fictícia vista como conteúdo real na demonstração] → O aviso fixo continua na tela, e a base é apresentada como exemplo ilustrativo.
+- [Chamadas pagas na nuvem] → Limite de 60 perguntas por conta em 24 horas, liberação só para a conta do usuário, limite de US$ 2 por mês no workspace `exames-ia` e crédito pré-pago sem recarga automática.
+- [Esquecer o chat ligado depois da demonstração] → Tarefa própria para revogar a liberação e voltar o módulo a `disabled`.
+- [KB na nuvem depois da demonstração] → Fica sem acesso pelo app, e a função não a usa com o módulo `disabled`; o conteúdo é fictício.
 - [Chave da API na máquina local] → O arquivo fica fora do git. O crédito pré-pago e o limite mensal continuam como trava final, e a chave deve ser do workspace `exames-ia`.
 
 ## Migration Plan
@@ -156,3 +170,4 @@ Os testes do `npm test` usam um cliente falso, sem custo.
 2. Rodar a carga local e servir a função.
 3. Com a confirmação do usuário, rodar uma pergunta e, depois, as 18.
 4. Para desfazer: remover a função e o código e, na nuvem, revogar a liberação e voltar o módulo a `disabled`. Remover a migração da nuvem exige uma nova migração.
+5. Demonstração de 07/11/2026, cada passo com o ok do usuário: publicar a função, carregar a KB na nuvem, passar o módulo a `testing`, liberar para a conta do usuário, testar no Expo Go e gerar o build preview. Depois da demonstração, revogar a liberação e voltar o módulo a `disabled`; a KB fica na nuvem para leitura e conferência.
