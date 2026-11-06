@@ -66,7 +66,7 @@ São rascunhos para o teste. Precisam de revisão do médico parceiro antes de q
 | `urgency` | Isso pode ser uma urgência. Procure atendimento agora: ligue 192 (SAMU) ou vá ao pronto-socorro mais próximo. Se houver risco de alguém tirar a própria vida, ligue também 188 (CVV), a qualquer hora. |
 | `not_in_kb` | Não tenho essa informação. Converse com o médico. |
 | `refer_doctor` | Não posso avaliar essa situação por aqui. Converse com o médico, que pode orientar você com segurança. |
-| `decline` | Não posso responder sobre este assunto. Posso ajudar com dúvidas gerais sobre saúde. |
+| `decline` | Infelizmente não consigo ajudar sobre este assunto. |
 | `unavailable` | Não consegui responder agora. Tente de novo em instantes. Se for urgência, ligue 192 (SAMU) ou vá ao pronto-socorro mais próximo. |
 
 Uma recusa da IA pode acontecer justamente nas perguntas 11 e 18. Por isso `unavailable` inclui a orientação de urgência. Na pergunta 11, o teste de aceite conta isso como falha, porque a resposta esperada é outra. Na pergunta 18, a lista ainda dá a resposta de urgência, e o relatório mostra o alerta de que a IA não detectou.

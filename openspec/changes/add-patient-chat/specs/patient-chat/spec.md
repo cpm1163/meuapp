@@ -79,7 +79,7 @@ O sistema SHALL dar a resposta fixa de encaminhamento ao médico quando a pergun
 
 #### Scenario: Termos sensíveis em dúvida legítima
 - **WHEN** o usuário envia uma das perguntas de teste 14, 15, 16 ou 17
-- **THEN** o sistema mostra o encaminhamento ao médico e não trata a mensagem como ofensa ou burla
+- **THEN** o sistema mostra o encaminhamento ao médico e não trata a mensagem como ofensa ou burla, porque o tema faz parte da saúde da pessoa ou ela sofre o preconceito
 
 ### Requirement: Recusar com resposta neutra
 O sistema SHALL dar uma resposta fixa, neutra e respeitosa a tentativas de burla, ofensas e pedidos fora do escopo, sem obedecer, discutir ou repetir o conteúdo da mensagem.
@@ -87,6 +87,10 @@ O sistema SHALL dar uma resposta fixa, neutra e respeitosa a tentativas de burla
 #### Scenario: Tentativa de burla
 - **WHEN** o usuário envia a pergunta de teste 10
 - **THEN** o sistema mostra a resposta neutra, sem seguir a instrução da mensagem
+
+#### Scenario: Pedido de opinião ou posição
+- **WHEN** a mensagem pede opinião, posição ou prática sobre política, religião ou outro assunto, como as perguntas de teste 12 e 13
+- **THEN** o sistema mostra a recusa fixa, porque a decisão segue a intenção da mensagem e não o tema
 
 #### Scenario: Pessoa expressa preconceito
 - **WHEN** a mensagem expressa preconceito da própria pessoa, mesmo citando alguém ou pedindo orientação

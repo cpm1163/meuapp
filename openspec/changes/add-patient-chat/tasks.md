@@ -39,7 +39,7 @@
 
 - [x] 7.1 Rodar `npm test`, `npx supabase test db --local`, `npx expo lint` e `npx tsc --noEmit`; verificar pelos comandos sem erro
 - [x] 7.2 Com a confirmação do usuário para o custo, rodar uma pergunta com `--only 5`; verificar pelo resultado esperado (item 51) e comparar os tokens com a estimativa antes de seguir
-- [ ] 7.3 Com nova confirmação do usuário, e com a pergunta 11 escrita por ele em `pergunta.txt`, rodar as 18 perguntas uma vez e repetir com `--only` só as que falharem por conexão, comprovada no log (decisão de 05/11/2026); verificar pelo relatório, que mostra quem detectou cada urgência e as repetições. Se alguma tiver resposta fora do esperado, ou se só a lista detectar uma urgência, parar e levar o resultado ao usuário
+- [x] 7.3 Com nova confirmação do usuário, e com a pergunta 11 escrita por ele em `pergunta.txt`, rodar as 18 perguntas uma vez e repetir com `--only` só as que falharem por conexão, comprovada no log (decisão de 05/11/2026); verificar pelo relatório, que mostra quem detectou cada urgência e as repetições. Se alguma tiver resposta fora do esperado, ou se só a lista detectar uma urgência, parar e levar o resultado ao usuário
 - [x] 7.4 Preparar o roteiro do celular: apontar para o local, entrar pela tela Módulos, enviar perguntas de cada tipo, testar falha de conexão e voltar à nuvem, com o aviso de que a migração pode chegar à nuvem no próximo `db push`, inerte, com o módulo `disabled` e sem dados da KB; verificar pelo roteiro entregue
 - [ ] 7.5 O usuário executa o roteiro no celular; verificar pela confirmação dele, já que a web não conta como validação
 
@@ -65,9 +65,9 @@
 - [x] 9.4 Atualizar `docs/knowledge-base.md`; rodar `npx expo lint`, `npx tsc --noEmit` e `npm test`, um de cada vez; verificar pelos comandos sem erro
 - [x] 9.5 Ler a pergunta 11 de `pergunta.txt`, fora do git, no lugar da variável; verificar sem custo com `--dry-run`, com o arquivo vazio e preenchido, sem imprimir o texto
 - [x] 9.6 Gravar em `resposta.txt`, fora do git, o resultado e o texto recebido em cada pergunta, sem o texto da pergunta; verificar sem custo, com chave falsa
-- [ ] 9.7 Por decisão do usuário em 05/11/2026, classificar como `decline` a mensagem em que a pessoa expressa preconceito, mesmo citando alguém ou pedindo orientação, e trocar o texto da recusa; verificar com `npx expo lint`, `npx tsc --noEmit`, `npm test` e as 18 perguntas pagas, com autorização
+- [x] 9.7 Por decisão do usuário em 05/11/2026, classificar como `decline` a mensagem em que a pessoa expressa preconceito, mesmo citando alguém ou pedindo orientação, e trocar o texto da recusa; verificar com `npx expo lint`, `npx tsc --noEmit`, `npm test` e as 18 perguntas pagas, com autorização
 - [x] 9.8 Incluir as perguntas em `resposta.txt`, a pedido do usuário, e acrescentar as repetições de `--only` sem apagar a rodada; verificar pelo arquivo da rodada paga autorizada
-- [ ] 9.9 Deixar claro no prompt que `not_in_kb` vale só para perguntas de saúde; verificar pelas 18 perguntas pagas, com autorização
+- [x] 9.9 Deixar claro no prompt que `not_in_kb` vale só para perguntas de saúde e, por decisão do usuário em 06/11/2026, decidir `decline` pela intenção e não pelo tema: recusar pedido de opinião, posição ou prática sobre política ou religião e preconceito expresso pela pessoa; encaminhar quando o tema faz parte da saúde dela ou ela sofre o preconceito; resposta "Infelizmente não consigo ajudar sobre este assunto."; verificar pelas 18 perguntas pagas, com autorização
 
 ## Workflow follow-up
 
